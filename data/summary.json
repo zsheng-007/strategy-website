@@ -1,0 +1,84 @@
+{
+  "update_time": "2026-08-18 16:56:09",
+  "etfs": {
+    "512040": {
+      "name": "价值ETF",
+      "fullname": "价值ETF富国",
+      "market": "sh",
+      "track_index": "国证价值100(980013)",
+      "fund_date": "2018-11-15"
+    },
+    "159259": {
+      "name": "成长ETF",
+      "fullname": "成长ETF易方达",
+      "market": "sz",
+      "track_index": "国证成长100(980080)",
+      "fund_date": "2025-08-20"
+    }
+  },
+  "benchmarks": {
+    "000922": {
+      "name": "中证A500",
+      "market": "sh",
+      "file": "a500"
+    },
+    "000905": {
+      "name": "中证500",
+      "market": "sh",
+      "file": "csi500"
+    }
+  },
+  "benchmark_note": "偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，以中证500指数(000905)替代",
+  "strategies": [
+    {
+      "name": "动量轮动",
+      "total_return": 26.84,
+      "annual_return": 29.04,
+      "max_drawdown": -30.6,
+      "sharpe": 0.835,
+      "calmar": 0.949,
+      "win_rate": 55.74,
+      "volatility": 35.8,
+      "start_date": "2025-08-28",
+      "end_date": "2026-08-18",
+      "trading_days": 235,
+      "strategy_type": "momentum"
+    },
+    {
+      "name": "等权再平衡",
+      "total_return": 27.72,
+      "annual_return": 30.0,
+      "max_drawdown": -19.21,
+      "sharpe": 1.072,
+      "calmar": 1.562,
+      "win_rate": 52.77,
+      "volatility": 25.71,
+      "start_date": "2025-08-28",
+      "end_date": "2026-08-18",
+      "trading_days": 235,
+      "strategy_type": "equal_weight"
+    },
+    {
+      "name": "相对强弱动态配比",
+      "total_return": 32.48,
+      "annual_return": 35.21,
+      "max_drawdown": -25.11,
+      "sharpe": 1.079,
+      "calmar": 1.402,
+      "win_rate": 56.6,
+      "volatility": 30.39,
+      "start_date": "2025-08-28",
+      "end_date": "2026-08-18",
+      "trading_days": 235,
+      "strategy_type": "relative_strength"
+    }
+  ],
+  "data_range": {
+    "start": "2025-08-28",
+    "end": "2026-08-18",
+    "trading_days": 235
+  },
+  "rebalance_freq": "周频（每周五）",
+  "momentum_lookback": "4周",
+  "transaction_cost": "0.1%"
+}
