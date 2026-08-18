@@ -30,6 +30,7 @@ from backtest import (
     get_rebalance_dates,
 )
 import industry_rotation
+import multi_asset
 
 # 推送通知配置（通过环境变量传入，避免硬编码）
 # 支持企业微信机器人 / 钉钉机器人 / 飞书机器人 / 自定义webhook
@@ -94,7 +95,7 @@ def check_rebalance_and_notify(prices, positions_dict, all_metrics):
     lines.append("**各策略最新持仓**:")
     lines.append("")
 
-    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(双因子)', 'industry_rotation', None)]:
+    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(双因子)', 'industry_rotation', None), ('多元配置(风险平价)', 'multi_asset', None)]:
         positions = positions_dict.get(stype)
         if positions is not None and len(positions) > 0:
             latest_pos = positions.iloc[-1]
@@ -103,8 +104,11 @@ def check_rebalance_and_notify(prices, positions_dict, all_metrics):
             for c, v in latest_pos.items():
                 if v > 0.01:  # 只显示>1%的持仓
                     if stype == 'industry_rotation':
-                        # 转换ETF代码为中文名
                         display_name = industry_rotation.INDUSTRY_ETF_POOL.get(c, {}).get('name', c)
+                        if c == '现金':
+                            display_name = '现金'
+                    elif stype == 'multi_asset':
+                        display_name = multi_asset.GLOBAL_ETF_POOL.get(c, {}).get('name', c)
                         if c == '现金':
                             display_name = '现金'
                     else:
@@ -208,6 +212,21 @@ def main():
             print(f"    -> 已更新: industry_rotation.json")
     except Exception as e:
         print(f"    行业轮动更新失败: {e}")
+
+    # 3.6 多元配置策略（跨境ETF，独立数据源）
+    print("\n  计算多元配置(风险平价)...")
+    try:
+        ma_etf_data = multi_asset.fetch_all_etf_data()
+        if len(ma_etf_data) >= 5:
+            ma_returns, ma_positions, ma_prices, ma_holdings = multi_asset.backtest_multi_asset(ma_etf_data)
+            ma_metrics = multi_asset.calc_metrics(ma_returns, '多元配置(风险平价)')
+            ma_metrics['strategy_type'] = 'multi_asset'
+            all_metrics.append(ma_metrics)
+            all_positions['multi_asset'] = ma_positions
+            multi_asset.save_strategy_json(ma_returns, ma_positions, ma_holdings, ma_metrics)
+            print(f"    -> 已更新: multi_asset.json")
+    except Exception as e:
+        print(f"    多元配置更新失败: {e}")
 
     # 4. 更新基准
     print("\n=== 更新基准数据 ===")
