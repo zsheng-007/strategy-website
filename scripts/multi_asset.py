@@ -36,17 +36,17 @@ GLOBAL_ETF_POOL = {
     '513100': {'name': '纳指ETF', 'market': 'sh', 'region': '美国', 'class': '股票'},
     '513500': {'name': '标普500ETF', 'market': 'sh', 'region': '美国', 'class': '股票'},
     '513400': {'name': '道琼斯ETF', 'market': 'sh', 'region': '美国', 'class': '股票'},
-    # 跨境ETF - 港股
+    # 跨境ETF - 港股（精简为2只，去掉重复）
     '513180': {'name': '恒生科技ETF', 'market': 'sh', 'region': '中国香港', 'class': '股票'},
-    '513050': {'name': '中概互联ETF', 'market': 'sh', 'region': '中国香港', 'class': '股票'},
+    '159632': {'name': '港股通科技ETF', 'market': 'sz', 'region': '中国香港', 'class': '股票'},
     # 跨境ETF - 日本
     '513520': {'name': '日经ETF', 'market': 'sh', 'region': '日本', 'class': '股票'},
     # 跨境ETF - 欧洲
     '513030': {'name': '德国ETF', 'market': 'sh', 'region': '德国', 'class': '股票'},
     '513980': {'name': '法国CAC40ETF', 'market': 'sh', 'region': '法国', 'class': '股票'},
-    # 跨境ETF - 亚太
-    '159632': {'name': '港股通科技ETF', 'market': 'sz', 'region': '中国香港', 'class': '股票'},
-    '513330': {'name': '恒生中国企业ETF', 'market': 'sh', 'region': '中国香港', 'class': '股票'},
+    # 跨境ETF - 新兴市场
+    '164824': {'name': '印度基金LOF', 'market': 'sz', 'region': '印度', 'class': '股票'},
+    '159100': {'name': '巴西ETF', 'market': 'sz', 'region': '巴西', 'class': '股票'},
     # 商品ETF - 黄金
     '518880': {'name': '黄金ETF', 'market': 'sh', 'region': '全球', 'class': '商品'},
     # 商品ETF - 有色金属
@@ -204,10 +204,17 @@ def backtest_multi_asset(etf_data):
     """
     print("\n运行多元配置策略(风险平价)...")
 
-    # 构建收盘价矩阵
+    # 构建收盘价矩阵，过滤数据不足的标的（<200天的自动跳过，数据充足后自动纳入）
+    MIN_DATA_POINTS = 200
     close_dict = {}
+    skipped = []
     for code, df in etf_data.items():
-        close_dict[code] = df.set_index('date')['close']
+        if len(df) >= MIN_DATA_POINTS:
+            close_dict[code] = df.set_index('date')['close']
+        else:
+            skipped.append(f"{GLOBAL_ETF_POOL[code]['name']}({code}, {len(df)}天)")
+    if skipped:
+        print(f"  跳过数据不足的标的: {', '.join(skipped)}")
     prices = pd.DataFrame(close_dict).dropna(how='all').ffill().dropna()
 
     # 计算波动率和动量
