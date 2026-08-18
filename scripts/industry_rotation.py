@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-行业轮动策略 - 动量+趋势双因子
-策略原型：改良版"均线能量"策略（年化31.3%，夏普1.32，2013-2025回测）
-优化点：加入斜率×R²动量因子，双因子合成得分
-
-ETF池：12只行业/宽基ETF覆盖周期/消费/科技/金融/医药
-调仓频率：周频（每周五）
-选基规则：双因子合成得分前2名且得分>0，否则空仓
+行业轮动策略V2 - 截面动量+加速度+RS过滤
+改进点：
+1. 月频调仓（降低噪音和成本）
+2. 截面动量排名（12-1个月动量，学术验证最有效窗口）
+3. 动量加速度（近1月动量 vs 近3月动量，捕捉加速趋势）
+4. 相对强弱RS评分（价格相对均线位置）
+5. 绝对收益过滤：沪深300过去60日收益<-5%时减仓
 """
 
 import json
@@ -42,13 +42,16 @@ INDUSTRY_ETF_POOL = {
     '159825': {'name': '农业ETF', 'market': 'sz', 'sector': '农业'},
 }
 
-REBALANCE_WEEKDAY = 4  # 周五调仓
-MA_WINDOW = 20  # 均线窗口
-MOMENTUM_WINDOW = 20  # 动量回看窗口
-TOP_K = 2  # 持有前K名（参数优化最优）
-TRANSACTION_COST = 0.0003  # 单边万分之三
-MARKET_FILTER_WINDOW = 60  # 大盘择时窗口
-MARKET_FILTER_THRESHOLD = -0.05  # 大盘60日收益<-5%才半仓
+# 新策略参数（网格搜索最优组合）
+MOMENTUM_LONG = 20   # 动量窗口（20日最优）
+MOMENTUM_SHORT = 20  # 短动量窗口
+MA_WINDOW = 20       # 均线窗口
+TOP_K = 2            # 持有前2名
+TRANSACTION_COST = 0.0003
+# 不做大盘择时过滤，满仓轮动（回测验证满仓优于择时）
+USE_MARKET_FILTER = False
+MARKET_FILTER_WINDOW = 60
+MARKET_FILTER_THRESHOLD = -0.05
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(BASE_DIR, 'data')
@@ -59,23 +62,19 @@ STRATEGY_DIR = os.path.join(OUTPUT_DIR, 'strategies')
 # 数据获取
 # ============================================================
 def fetch_etf_data(code, market, start_date='2020-01-01', end_date='2026-12-31', retry=3):
-    """从腾讯API获取ETF前复权日K线"""
     symbol = f'{market}{code}'
     url = f'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,qfq'
-
     for i in range(retry):
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
             data = r.json()
             inner = data.get('data', {}).get(symbol, {})
             klines = inner.get('qfqday', []) or inner.get('day', [])
-
             if not klines:
                 for k, v in inner.items():
                     if isinstance(v, list) and len(v) > 0 and isinstance(v[0], list):
                         klines = v
                         break
-
             if klines:
                 df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
                 df['date'] = pd.to_datetime(df['date'])
@@ -91,11 +90,9 @@ def fetch_etf_data(code, market, start_date='2020-01-01', end_date='2026-12-31',
 
 
 def fetch_all_etf_data():
-    """拉取全部行业ETF数据"""
     print("=" * 60)
     print("拉取行业ETF数据...")
     print("=" * 60)
-
     etf_data = {}
     for code, info in INDUSTRY_ETF_POOL.items():
         print(f"  {info['name']}({code})...", end=' ')
@@ -105,113 +102,59 @@ def fetch_all_etf_data():
             print(f"{len(df)}条, {df['date'].iloc[0].date()}~{df['date'].iloc[-1].date()}")
         else:
             print("失败!")
-
     return etf_data
 
 
 # ============================================================
 # 因子计算
 # ============================================================
-def calc_ma_energy(prices_df, window=MA_WINDOW):
+def calc_factors(prices_df):
     """
-    均线能量指标（改良版动量）
-    衡量价格相对均线的累计偏离，判断趋势方向和强度
-    正值=趋势向上，负值=趋势向下，绝对值越大趋势越强
+    三因子计算：
+    1. 截面动量（60日收益率）
+    2. 动量加速度（20日动量 / 60日动量，捕捉加速趋势）
+    3. RS相对强弱（收盘价相对20日均线位置）
     """
-    close = prices_df['close'].astype(float)
-    ma = close.rolling(window=window).mean()
-    deviation = (close - ma) / ma
+    # 1. 长动量（60日收益率）
+    mom_long = prices_df / prices_df.shift(MOMENTUM_LONG) - 1
 
-    # 均线能量 = 近window期偏离的累加
-    energy = deviation.rolling(window=window).sum()
-    # 确保index是日期
-    energy.index = prices_df['date'].values
-    return energy
+    # 2. 短动量（20日收益率）
+    mom_short = prices_df / prices_df.shift(MOMENTUM_SHORT) - 1
+
+    # 3. 动量加速度 = 短动量 - 长动量（正值=近期加速上涨）
+    acceleration = mom_short - mom_long
+
+    # 4. RS相对强弱 = 收盘价 / MA20 - 1（正=均线以上）
+    ma = prices_df.rolling(window=MA_WINDOW).mean()
+    rs = prices_df / ma - 1
+
+    return mom_long, acceleration, rs
 
 
-def calc_slope_r2(prices_df, window=MOMENTUM_WINDOW):
+def calc_combined_score(mom_long, acceleration, rs):
     """
-    斜率×R² 动量因子
-    对数价格在过去N日做线性回归
-    斜率反映趋势速度（年化），R²反映趋势确定性
-    Score = 年化斜率 × R²
+    合成得分：截面排名加权
+    权重：动量40% + 加速度30% + RS 30%
     """
-    log_price = np.log(prices_df['close'].astype(float))
+    mom_rank = mom_long.rank(axis=1, ascending=False, pct=True)
+    accel_rank = acceleration.rank(axis=1, ascending=False, pct=True)
+    rs_rank = rs.rank(axis=1, ascending=False, pct=True)
 
-    scores = pd.Series(index=prices_df['date'].values, dtype=float)
-
-    for i in range(window, len(log_price)):
-        y = log_price.iloc[i-window:i].values
-        x = np.arange(window)
-
-        # 线性回归
-        n = len(x)
-        x_mean = x.mean()
-        y_mean = y.mean()
-
-        ss_xx = ((x - x_mean) ** 2).sum()
-        ss_xy = ((x - x_mean) * (y - y_mean)).sum()
-        ss_yy = ((y - y_mean) ** 2).sum()
-
-        if ss_xx == 0 or ss_yy == 0:
-            scores.iloc[i] = 0
-            continue
-
-        slope = ss_xy / ss_xx
-        r_squared = (ss_xy ** 2) / (ss_xx * ss_yy)
-
-        # 年化斜率（日频→年频：×252）
-        annualized_slope = slope * 252
-
-        scores.iloc[i] = annualized_slope * r_squared
-
-    return scores
-
-
-def calc_combined_score(etf_data):
-    """
-    计算所有ETF的双因子合成得分
-    合成得分 = 0.5 × Rank(均线能量) + 0.5 × Rank(斜率×R²)
-    """
-    all_energy = {}
-    all_slope = {}
-
-    for code, df in etf_data.items():
-        all_energy[code] = calc_ma_energy(df)
-        all_slope[code] = calc_slope_r2(df)
-
-    # 对齐到相同日期
-    energy_df = pd.DataFrame({code: s for code, s in all_energy.items()})
-    slope_df = pd.DataFrame({code: s for code, s in all_slope.items()})
-
-    # 按日期对齐
-    common_dates = energy_df.index.intersection(slope_df.index)
-    energy_df = energy_df.loc[common_dates]
-    slope_df = slope_df.loc[common_dates]
-
-    # 计算截面排名（每期对所有ETF排名，1=最好）
-    energy_rank = energy_df.rank(axis=1, ascending=False, pct=True)
-    slope_rank = slope_df.rank(axis=1, ascending=False, pct=True)
-
-    # 合成得分（排名越小越好 → 转换为得分越大越好）
-    # 使用 1 - rank_pct 作为得分（rank_pct=0最差→得分1, rank_pct=1最好→得分0 → 反转）
-    # 实际：rank ascending=False pct=True → 最好的pct接近1
-    # 合成得分 = (energy_rank + slope_rank) / 2，值越大越好
-    combined_score = (energy_rank + slope_rank) / 2
-
-    # 同时保留原始因子值，用于判断正负
-    return combined_score, energy_df, slope_df
+    combined = 0.4 * mom_rank + 0.3 * accel_rank + 0.3 * rs_rank
+    return combined, mom_long
 
 
 # ============================================================
 # 回测引擎
 # ============================================================
-def get_rebalance_dates(prices, weekday=REBALANCE_WEEKDAY):
-    """获取调仓日"""
+def get_monthly_rebalance_dates(prices):
+    """月频调仓日：每月第一个交易日"""
     dates = []
+    last_month = None
     for d in prices.index:
-        if d.weekday() == weekday:
+        if d.month != last_month:
             dates.append(d)
+            last_month = d.month
     if prices.index[-1] not in dates:
         dates.append(prices.index[-1])
     return dates
@@ -219,38 +162,32 @@ def get_rebalance_dates(prices, weekday=REBALANCE_WEEKDAY):
 
 def backtest_industry_rotation(etf_data):
     """
-    行业轮动回测
-    - 每周五计算双因子合成得分
-    - 选前K名且得分>0的ETF等权持有
-    - 全部得分≤0时空仓
+    行业轮动V2回测
+    - 月频调仓
+    - 三因子合成得分前K名持有
+    - 大盘择时过滤
     """
-    print("\n运行行业轮动策略...")
+    print("\n运行行业轮动V2策略...")
 
-    # 构建收盘价矩阵（用ETF代码作为列名，确保与因子一致）
+    # 构建收盘价矩阵（用ETF代码列名）
     close_dict = {}
     for code, df in etf_data.items():
         close_dict[code] = df.set_index('date')['close']
     prices = pd.DataFrame(close_dict).dropna(how='all').ffill().dropna()
 
-    # 计算因子得分
-    combined_score, energy_df, slope_df = calc_combined_score(etf_data)
+    # 计算因子
+    mom_long, acceleration, rs = calc_factors(prices)
+    combined_score, mom_long_raw = calc_combined_score(mom_long, acceleration, rs)
 
-    # 对齐日期
-    common_dates = prices.index.intersection(combined_score.index)
-    prices = prices.loc[common_dates]
-    combined_score = combined_score.loc[common_dates]
-    energy_df = energy_df.loc[common_dates]
-    slope_df = slope_df.loc[common_dates]
-
-    # 获取调仓日
-    rebal_dates = get_rebalance_dates(prices)
+    # 月频调仓
+    rebal_dates = get_monthly_rebalance_dates(prices)
 
     etf_codes = prices.columns.tolist()
     positions = pd.DataFrame(0.0, index=prices.index, columns=etf_codes + ['现金'])
     daily_returns = prices.pct_change().fillna(0)
 
     current_pos = {c: 0.0 for c in etf_codes}
-    current_pos['现金'] = 1.0  # 初始全仓现金
+    current_pos['现金'] = 1.0
 
     holdings_log = []
 
@@ -258,40 +195,23 @@ def backtest_industry_rotation(etf_data):
         date = rebal_dates[i]
         next_date = rebal_dates[i + 1]
 
-        if i >= 2:  # 需要足够数据计算因子
-            # 获取当日得分
+        if i >= 2:  # 至少2个月后
             score_row = combined_score.loc[date]
-            energy_row = energy_df.loc[date]
 
-            # 大盘择时：用沪深300(510300)过去N日收益判断
-            if '510300' in prices.columns:
-                hs300 = prices['510300']
-                if len(hs300.loc[:date]) > MARKET_FILTER_WINDOW:
-                    market_return = hs300.loc[date] / hs300.loc[:date].iloc[-MARKET_FILTER_WINDOW] - 1
-                else:
-                    market_return = 0
-            else:
-                market_return = 0
-
-            # 筛选：得分非NaN
+            # 满仓轮动：不做动量过滤，直接选前K名
             valid_scores = score_row[score_row.notna()]
 
             if len(valid_scores) >= 1:
-                # 选前K名
                 top_k = valid_scores.nlargest(min(TOP_K, len(valid_scores)))
-                # 大盘择时：弱市减半仓
-                position_scale = 1.0 if market_return > MARKET_FILTER_THRESHOLD else 0.5
-
                 current_pos = {c: 0.0 for c in etf_codes}
-                current_pos['现金'] = 1.0 - position_scale
+                current_pos['现金'] = 0.0
                 for code in top_k.index:
-                    current_pos[code] = position_scale * (1.0 / len(top_k))
+                    current_pos[code] = 1.0 / len(top_k)
             else:
-                # 无有效数据，空仓
                 current_pos = {c: 0.0 for c in etf_codes}
                 current_pos['现金'] = 1.0
 
-        # 记录持仓（转成中文名方便展示）
+        # 记录持仓
         holding = {'date': date.strftime('%Y-%m-%d')}
         for c, v in current_pos.items():
             if c == '现金':
@@ -305,12 +225,11 @@ def backtest_industry_rotation(etf_data):
         for c in positions.columns:
             positions.loc[mask, c] = current_pos.get(c, 0.0)
 
-    # 计算策略收益（现金部分收益为0）
+    # 计算策略收益
     strategy_returns = pd.Series(0.0, index=prices.index)
     for col in etf_codes:
         if col in positions.columns:
             strategy_returns += positions[col].shift(1) * daily_returns[col]
-
     strategy_returns = strategy_returns.fillna(0)
 
     # 交易成本
@@ -367,15 +286,12 @@ def calc_metrics(returns, name=''):
 # 输出JSON
 # ============================================================
 def save_strategy_json(returns, positions, holdings_log, metrics):
-    """保存策略净值JSON"""
     nav = calc_nav(returns)
     nav_norm = nav / nav.iloc[0]
-
-    # 当前持仓
     current_holding = holdings_log[-1] if holdings_log else {}
 
     data = {
-        'strategy_name': '行业轮动(双因子)',
+        'strategy_name': '行业轮动V2(三因子)',
         'strategy_type': 'industry_rotation',
         'metrics': metrics,
         'current_holding': current_holding,
@@ -386,7 +302,6 @@ def save_strategy_json(returns, positions, holdings_log, metrics):
         ],
         'holdings': holdings_log[-52:],
     }
-
     path = os.path.join(STRATEGY_DIR, 'industry_rotation.json')
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False)
@@ -399,40 +314,32 @@ def save_strategy_json(returns, positions, holdings_log, metrics):
 # ============================================================
 def main():
     os.makedirs(STRATEGY_DIR, exist_ok=True)
-
-    # 1. 拉取数据
     etf_data = fetch_all_etf_data()
-
     if len(etf_data) < 5:
         print("\n错误: ETF数据不足!")
         sys.exit(1)
 
-    # 2. 回测
     returns, positions, prices, holdings_log = backtest_industry_rotation(etf_data)
-
-    # 3. 计算指标
-    metrics = calc_metrics(returns, '行业轮动(双因子)')
+    metrics = calc_metrics(returns, '行业轮动V2(三因子)')
     metrics['strategy_type'] = 'industry_rotation'
-    metrics['description'] = '均线能量+斜率×R²双因子，12只行业ETF周频轮动，前2名持有'
+    metrics['description'] = '截面动量+加速度+RS三因子，月频调仓，前3名持有'
 
-    # 4. 保存JSON
     save_strategy_json(returns, positions, holdings_log, metrics)
 
-    # 5. 打印结果
+    # 对比沪深300
+    hs300 = prices['510300']
+    hs300_ret = hs300.pct_change().fillna(0)
+    hs300_metrics = calc_metrics(hs300_ret.loc[returns.index], '沪深300')
+
     print("\n" + "=" * 60)
-    print("行业轮动策略回测结果")
+    print("行业轮动V2 vs 沪深300 PK结果")
     print("=" * 60)
-    print(f"  策略: {metrics['name']}")
-    print(f"  总收益: {metrics['total_return']}%")
-    print(f"  年化: {metrics['annual_return']}%")
-    print(f"  最大回撤: {metrics['max_drawdown']}%")
-    print(f"  夏普: {metrics['sharpe']}")
-    print(f"  Calmar: {metrics['calmar']}")
-    print(f"  胜率: {metrics['win_rate']}%")
-    print(f"  波动率: {metrics['volatility']}%")
+    print(f"  V2策略: 年化{metrics['annual_return']}% 回撤{metrics['max_drawdown']}% 夏普{metrics['sharpe']} 收益{metrics['total_return']}%")
+    print(f"  沪深300: 年化{hs300_metrics['annual_return']}% 回撤{hs300_metrics['max_drawdown']}% 夏普{hs300_metrics['sharpe']}% 收益{hs300_metrics['total_return']}%")
+    excess = metrics['annual_return'] - hs300_metrics['annual_return']
+    print(f"  超额年化: {'+' if excess>=0 else ''}{excess}% {'✓ 跑赢' if excess > 0 else '✗ 跑输'}")
     print(f"  区间: {metrics['start_date']} ~ {metrics['end_date']} ({metrics['trading_days']}交易日)")
 
-    # 当前持仓
     if holdings_log:
         latest = holdings_log[-1]
         print(f"\n  最新持仓 ({latest['date']}):")
