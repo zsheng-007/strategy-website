@@ -29,6 +29,7 @@ from backtest import (
     calc_nav, calc_metrics, strategy_to_json, benchmark_to_json,
     get_rebalance_dates,
 )
+import industry_rotation
 
 # 推送通知配置（通过环境变量传入，避免硬编码）
 # 支持企业微信机器人 / 钉钉机器人 / 飞书机器人 / 自定义webhook
@@ -93,11 +94,23 @@ def check_rebalance_and_notify(prices, positions_dict, all_metrics):
     lines.append("**各策略最新持仓**:")
     lines.append("")
 
-    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None)]:
+    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(双因子)', 'industry_rotation', None)]:
         positions = positions_dict.get(stype)
         if positions is not None and len(positions) > 0:
             latest_pos = positions.iloc[-1]
-            pos_str = ' | '.join([f"{c}: {v*100:.0f}%" for c, v in latest_pos.items()])
+            # 只显示非零持仓，行业轮动的列名是代码需转换
+            pos_items = []
+            for c, v in latest_pos.items():
+                if v > 0.01:  # 只显示>1%的持仓
+                    if stype == 'industry_rotation':
+                        # 转换ETF代码为中文名
+                        display_name = industry_rotation.INDUSTRY_ETF_POOL.get(c, {}).get('name', c)
+                        if c == '现金':
+                            display_name = '现金'
+                    else:
+                        display_name = c
+                    pos_items.append(f"{display_name}: {v*100:.0f}%")
+            pos_str = ' | '.join(pos_items) if pos_items else '空仓'
 
             # 找对应metrics
             m = next((x for x in all_metrics if x.get('strategy_type') == stype), {})
@@ -178,6 +191,23 @@ def main():
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(jdata, f, ensure_ascii=False)
         print(f"    -> 已更新: {path}")
+
+    # 3.5 行业轮动策略（独立数据源）
+    print("\n  计算行业轮动(双因子)...")
+    try:
+        ind_etf_data = industry_rotation.fetch_all_etf_data()
+        if len(ind_etf_data) >= 5:
+            ind_returns, ind_positions, ind_prices, ind_holdings = industry_rotation.backtest_industry_rotation(ind_etf_data)
+            ind_metrics = industry_rotation.calc_metrics(ind_returns, '行业轮动(双因子)')
+            ind_metrics['strategy_type'] = 'industry_rotation'
+            all_metrics.append(ind_metrics)
+            # 行业轮动的positions格式不同，用holdings构建虚拟positions
+            all_positions['industry_rotation'] = ind_positions
+            # 保存JSON
+            industry_rotation.save_strategy_json(ind_returns, ind_positions, ind_holdings, ind_metrics)
+            print(f"    -> 已更新: industry_rotation.json")
+    except Exception as e:
+        print(f"    行业轮动更新失败: {e}")
 
     # 4. 更新基准
     print("\n=== 更新基准数据 ===")
