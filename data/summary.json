@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-08-18 14:22:18",
+  "update_time": "2026-08-18 22:40:34",
   "etfs": {
     "512040": {
       "name": "价值ETF",
@@ -22,13 +22,13 @@
       "market": "sh",
       "file": "a500"
     },
-    "000905": {
-      "name": "中证500",
-      "market": "sh",
-      "file": "csi500"
+    "us.INX": {
+      "name": "标普500",
+      "market": "us",
+      "file": "sp500"
     }
   },
-  "benchmark_note": "偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，以中证500指数(000905)替代",
+  "benchmark_note": "偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，改用标普500指数(us.INX)作为海外基准",
   "strategies": [
     {
       "name": "动量轮动",
