@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>志胜投资策略</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1c2333;
+  --bg-hover: #232b3d;
+  --border: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --up: #ef4444;
+  --down: #22c55e;
+  --gold: #d4af37;
+  --shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(12px);
+}
+.header-inner {
+  max-width: 1400px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo {
+  font-size: 20px; font-weight: 700;
+  background: linear-gradient(135deg, #58a6ff, #d4af37);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.header-info {
+  display: flex; gap: 20px; align-items: center;
+  font-size: 13px; color: var(--text-secondary);
+}
+.update-dot {
+  display: inline-block; width: 8px; height: 8px;
+  background: var(--down); border-radius: 50%;
+  margin-right: 6px;
+  box-shadow: 0 0 6px var(--down);
+}
+
+/* Nav */
+.nav {
+  display: flex; gap: 4px; margin-top: 12px;
+}
+.nav-item {
+  padding: 6px 16px; border-radius: 8px;
+  font-size: 14px; cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+.nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.nav-item.active {
+  background: var(--accent); color: #fff;
+}
+
+/* Container */
+.container {
+  max-width: 1400px; margin: 0 auto;
+  padding: 24px;
+}
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--accent); }
+.card-title {
+  font-size: 18px; font-weight: 600;
+  margin-bottom: 4px;
+}
+.card-subtitle {
+  font-size: 13px; color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+/* Strategy Grid */
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+}
+
+/* Metrics */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.metric {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.metric-label {
+  font-size: 12px; color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.metric-value {
+  font-size: 18px; font-weight: 700;
+}
+.metric-value.pos { color: var(--up); }
+.metric-value.neg { color: var(--down); }
+
+/* Chart */
+.chart-container {
+  width: 100%; height: 400px;
+  margin: 12px 0;
+}
+.chart-container.large { height: 500px; }
+
+/* Badge */
+.badge {
+  display: inline-block;
+  padding: 2px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 500;
+  background: rgba(88,166,255,0.15);
+  color: var(--accent);
+}
+.badge.gold { background: rgba(212,175,55,0.15); color: var(--gold); }
+.badge.green { background: rgba(34,197,94,0.15); color: var(--down); }
+
+/* Table */
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 14px;
+}
+th, td {
+  padding: 10px 14px; text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  color: var(--text-muted); font-weight: 500;
+  font-size: 13px;
+}
+tbody tr:hover { background: var(--bg-hover); }
+
+/* Tabs */
+.tabs {
+  display: flex; gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.tab {
+  padding: 8px 20px; cursor: pointer;
+  font-size: 14px; color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text-primary); }
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Section */
+.section { display: none; }
+.section.active { display: block; }
+
+/* Footer */
+.footer {
+  text-align: center; padding: 24px;
+  color: var(--text-muted); font-size: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+}
+
+/* Loading */
+.loading {
+  text-align: center; padding: 60px;
+  color: var(--text-muted);
+}
+.loading-spinner {
+  display: inline-block; width: 32px; height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container { padding: 12px; }
+  .strategy-grid { grid-template-columns: 1fr; }
+  .header-info { display: none; }
+  .chart-container { height: 300px; }
+}
+
+/* Note */
+.note {
+  background: rgba(212,175,55,0.08);
+  border: 1px solid rgba(212,175,55,0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px; color: #e8d48a;
+  margin: 12px 0;
+}
+
+/* Strategy detail */
+.detail-header {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px;
+}
+.back-btn {
+  padding: 4px 12px; border-radius: 6px;
+  background: var(--bg-secondary); cursor: pointer;
+  font-size: 14px; color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.back-btn:hover { color: var(--accent); border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">志胜投资策略</div>
+    <div class="header-info">
+      <span><span class="update-dot"></span>数据更新：<span id="updateTime">--</span></span>
+      <span>标的：价值ETF(512040) + 成长ETF(159259)</span>
+    </div>
+  </div>
+  <div class="nav header-inner" style="margin-top:8px;">
+    <div class="nav-item active" data-section="overview">策略总览</div>
+    <div class="nav-item" data-section="detail">策略详情</div>
+    <div class="nav-item" data-section="compare">策略对比</div>
+    <div class="nav-item" data-section="holdings">持仓记录</div>
+    <div class="nav-item" data-section="about">关于</div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- 策略总览 -->
+  <div class="section active" id="section-overview">
+    <div class="card">
+      <div class="card-title">投资策略概览</div>
+      <div class="card-subtitle">基于价值ETF(512040)与成长ETF(159259)的多策略体系，周频调仓</div>
+      <div class="note">
+        ℹ️ 回测区间：<span id="dataRange">--</span> ｜ 调仓频率：周频（每周五） ｜ 交易成本：0.1%<br>
+        对比基准：中证A500(000922) + 中证500(000905，替代偏股混合基金指数885001)
+      </div>
+    </div>
+    <div class="strategy-grid" id="strategyCards">
+      <div class="loading"><div class="loading-spinner"></div><p style="margin-top:12px;">加载策略数据...</p></div>
+    </div>
+  </div>
+
+  <!-- 策略详情 -->
+  <div class="section" id="section-detail">
+    <div id="detailContent">
+      <div class="card">
+        <div class="card-title">选择策略查看详情</div>
+        <div class="card-subtitle">点击下方策略卡片进入详情页</div>
+        <div id="detailSelector" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"></div>
+      </div>
+      <div id="detailBody"></div>
+    </div>
+  </div>
+
+  <!-- 策略对比 -->
+  <div class="section" id="section-compare">
+    <div class="card">
+      <div class="card-title">策略净值对比</div>
+      <div class="card-subtitle">所有策略与基准指数的归一化净值曲线</div>
+      <div id="compareChart" class="chart-container large"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">回测指标对比</div>
+      <div id="compareTable"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">回撤对比</div>
+      <div id="drawdownChart" class="chart-container"></div>
+    </div>
+  </div>
+
+  <!-- 持仓记录 -->
+  <div class="section" id="section-holdings">
+    <div class="card">
+      <div class="card-title">持仓调仓记录</div>
+      <div class="card-subtitle">各策略近期持仓权重变化</div>
+      <div class="tabs" id="holdingsTabs"></div>
+      <div id="holdingsTable"></div>
+    </div>
+  </div>
+
+  <!-- 关于 -->
+  <div class="section" id="section-about">
+    <div class="card">
+      <div class="card-title">关于本站</div>
+      <div style="line-height:1.8; color:var(--text-secondary); font-size:14px;">
+        <p style="margin-bottom:12px;"><strong style="color:var(--text-primary);">志胜投资策略</strong> 是个人投资策略研究展示平台，聚焦A股ETF量化策略。</p>
+        <p style="margin-bottom:12px;"><strong style="color:var(--text-primary);">当前策略体系：</strong>基于价值ETF(512040)与成长ETF(159259)的风格轮动策略，包含动量轮动、等权再平衡、相对强弱动态配比三个子策略。</p>
+        <p style="margin-bottom:12px;"><strong style="color:var(--text-primary);">数据更新：</strong>净值数据每个交易日收盘后自动更新（GitHub Actions定时任务）。</p>
+        <p style="margin-bottom:12px;"><strong style="color:var(--text-primary);">对比基准：</strong></p>
+        <ul style="margin-left:20px; margin-bottom:12px;">
+          <li>中证A500指数(000922) — 反映A股核心资产整体表现</li>
+          <li>中证500指数(000905) — 因偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，以此替代</li>
+        </ul>
+        <p style="margin-bottom:12px;"><strong style="color:var(--text-primary);">风险提示：</strong>本站内容仅供个人研究参考，不构成投资建议。过往业绩不代表未来表现。投资有风险，入市需谨慎。</p>
+        <p><strong style="color:var(--text-primary);">技术栈：</strong>Python回测引擎 + ECharts可视化 + GitHub Pages部署</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  志胜投资策略 ｜ 数据仅供研究参考，不构成投资建议 ｜ Powered by GitHub Pages
+</div>
+
+<script>
+// ============================================================
+// 全局数据
+// ============================================================
+let SUMMARY = null;
+let STRATEGY_DATA = {};
+let BENCHMARK_DATA = {};
+let charts = {};
+
+const STRATEGY_META = {
+  'momentum': { name: '动量轮动', desc: '过去4周动量最强的ETF满仓持有', color: '#ef4444' },
+  'equal_weight': { name: '等权再平衡', desc: '50/50等权配置，每周再平衡', color: '#58a6ff' },
+  'relative_strength': { name: '相对强弱动态配比', desc: '按动量强弱动态分配权重(20%-80%)', color: '#d4af37' },
+};
+
+const BENCHMARK_META = {
+  'a500': { name: '中证A500', color: '#22c55e' },
+  'csi500': { name: '中证500', color: '#a855f7' },
+};
+
+// ============================================================
+// 数据加载
+// ============================================================
+async function loadJSON(path) {
+  try {
+    const r = await fetch(path);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) {
+    console.warn('Failed to load:', path, e);
+    return null;
+  }
+}
+
+async function loadAllData() {
+  SUMMARY = await loadJSON('data/summary.json');
+
+  for (const key of Object.keys(STRATEGY_META)) {
+    STRATEGY_DATA[key] = await loadJSON(`data/strategies/${key}.json`);
+  }
+  for (const key of Object.keys(BENCHMARK_META)) {
+    BENCHMARK_DATA[key] = await loadJSON(`data/benchmarks/${key}.json`);
+  }
+}
+
+// ============================================================
+// 渲染：总览
+// ============================================================
+function renderOverview() {
+  if (!SUMMARY) return;
+
+  document.getElementById('updateTime').textContent = SUMMARY.update_time;
+  document.getElementById('dataRange').textContent =
+    `${SUMMARY.data_range.start} ~ ${SUMMARY.data_range.end} (${SUMMARY.data_range.trading_days}个交易日)`;
+
+  const container = document.getElementById('strategyCards');
+  container.innerHTML = '';
+
+  for (const s of SUMMARY.strategies) {
+    const meta = STRATEGY_META[s.strategy_type] || {};
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cursor = 'pointer';
+    card.onclick = () => showDetail(s.strategy_type);
+
+    const retClass = s.total_return >= 0 ? 'pos' : 'neg';
+    const ddClass = s.max_drawdown >= 0 ? 'pos' : 'neg';
+    const sharpeClass = s.sharpe >= 1 ? 'pos' : '';
+
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div>
+          <div class="card-title">${s.name}</div>
+          <div class="card-subtitle">${meta.desc || ''}</div>
+        </div>
+        <span class="badge">${s.trading_days}交易日</span>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric">
+          <div class="metric-label">总收益</div>
+          <div class="metric-value ${retClass}">${s.total_return > 0 ? '+' : ''}${s.total_return}%</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">年化收益</div>
+          <div class="metric-value ${retClass}">${s.annual_return > 0 ? '+' : ''}${s.annual_return}%</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">最大回撤</div>
+          <div class="metric-value ${ddClass}">${s.max_drawdown}%</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">夏普比率</div>
+          <div class="metric-value ${sharpeClass}">${s.sharpe}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Calmar</div>
+          <div class="metric-value">${s.calmar}</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">胜率</div>
+          <div class="metric-value">${s.win_rate}%</div>
+        </div>
+      </div>
+      <div id="mini-chart-${s.strategy_type}" style="width:100%;height:120px;"></div>
+    `;
+    container.appendChild(card);
+  }
+
+  // 渲染迷你图
+  setTimeout(() => {
+    for (const s of SUMMARY.strategies) {
+      renderMiniChart(s.strategy_type);
+    }
+  }, 100);
+}
+
+function renderMiniChart(stype) {
+  const data = STRATEGY_DATA[stype];
+  if (!data) return;
+  const el = document.getElementById(`mini-chart-${stype}`);
+  if (!el) return;
+
+  const chart = echarts.init(el);
+  const meta = STRATEGY_META[stype];
+  chart.setOption({
+    grid: { top: 5, bottom: 5, left: 0, right: 0 },
+    xAxis: { type: 'category', show: false, data: data.nav.map(d => d.date) },
+    yAxis: { type: 'value', show: false },
+    series: [{
+      type: 'line',
+      data: data.nav.map(d => d.nav),
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { color: meta.color, width: 1.5 },
+      areaStyle: { color: meta.color, opacity: 0.1 },
+    }],
+  });
+}
+
+// ============================================================
+// 渲染：详情
+// ============================================================
+function renderDetailSelector() {
+  const container = document.getElementById('detailSelector');
+  container.innerHTML = '';
+  for (const s of SUMMARY.strategies) {
+    const btn = document.createElement('div');
+    btn.className = 'badge';
+    btn.style.cursor = 'pointer';
+    btn.style.padding = '6px 16px';
+    btn.textContent = s.name;
+    btn.onclick = () => showDetail(s.strategy_type);
+    container.appendChild(btn);
+  }
+}
+
+function showDetail(stype) {
+  // 切换到详情section
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('[data-section="detail"]').classList.add('active');
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('section-detail').classList.add('active');
+
+  const data = STRATEGY_DATA[stype];
+  if (!data) return;
+  const meta = STRATEGY_META[stype];
+  const m = data.metrics;
+
+  const retClass = m.total_return >= 0 ? 'pos' : 'neg';
+  const ddClass = m.max_drawdown >= 0 ? 'pos' : 'neg';
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="card">
+      <div class="detail-header">
+        <span class="back-btn" onclick="renderDetailSelector();document.getElementById('detailBody').innerHTML='';">← 返回</span>
+        <div class="card-title" style="color:${meta.color};">${m.name}</div>
+        <span class="badge gold">周频调仓</span>
+      </div>
+      <div class="card-subtitle">${meta.desc}</div>
+      <div class="metrics-grid">
+        <div class="metric"><div class="metric-label">总收益</div><div class="metric-value ${retClass}">${m.total_return>0?'+':''}${m.total_return}%</div></div>
+        <div class="metric"><div class="metric-label">年化收益</div><div class="metric-value ${retClass}">${m.annual_return>0?'+':''}${m.annual_return}%</div></div>
+        <div class="metric"><div class="metric-label">最大回撤</div><div class="metric-value ${ddClass}">${m.max_drawdown}%</div></div>
+        <div class="metric"><div class="metric-label">夏普比率</div><div class="metric-value">${m.sharpe}</div></div>
+        <div class="metric"><div class="metric-label">Calmar</div><div class="metric-value">${m.calmar}</div></div>
+        <div class="metric"><div class="metric-label">胜率</div><div class="metric-value">${m.win_rate}%</div></div>
+        <div class="metric"><div class="metric-label">年化波动</div><div class="metric-value">${m.volatility}%</div></div>
+        <div class="metric"><div class="metric-label">交易日</div><div class="metric-value">${m.trading_days}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">净值曲线</div>
+      <div class="card-subtitle">${m.start_date} ~ ${m.end_date}</div>
+      <div id="detailNavChart" class="chart-container large"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">vs 基准对比</div>
+      <div id="detailCompareChart" class="chart-container"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">回撤曲线</div>
+      <div id="detailDDChart" class="chart-container"></div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    renderDetailCharts(stype);
+  }, 100);
+
+  renderDetailSelector();
+}
+
+function renderDetailCharts(stype) {
+  const data = STRATEGY_DATA[stype];
+  const meta = STRATEGY_META[stype];
+  const dates = data.nav.map(d => d.date);
+  const navs = data.nav.map(d => d.nav);
+
+  // 净值曲线
+  const navChart = echarts.init(document.getElementById('detailNavChart'));
+  navChart.setOption({
+    tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>净值: ${p[0].value.toFixed(4)}` },
+    grid: { top: 20, bottom: 30, left: 60, right: 20 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: '#8b949e', formatter: v => v.toFixed(2) } },
+    series: [{
+      name: meta.name, type: 'line', data: navs, smooth: true, symbol: 'none',
+      lineStyle: { color: meta.color, width: 2 },
+      areaStyle: { color: meta.color, opacity: 0.08 },
+    }],
+  });
+
+  // 对比基准
+  const compareData = [{ name: meta.name, data: navs, color: meta.color }];
+  for (const [key, bm] of Object.entries(BENCHMARK_DATA)) {
+    if (!bm) continue;
+    const bmMeta = BENCHMARK_META[key];
+    // 截取相同时间段
+    const startIdx = bm.nav.findIndex(d => d.date >= dates[0]);
+    const endIdx = bm.nav.findIndex(d => d.date >= dates[dates.length-1]);
+    const bmNavs = bm.nav.slice(startIdx >= 0 ? startIdx : 0, endIdx >= 0 ? endIdx + 1 : bm.nav.length);
+    if (bmNavs.length > 0) {
+      const bmFirst = bmNavs[0].nav;
+      compareData.push({
+        name: bmMeta.name,
+        data: bmNavs.map(d => d.nav / bmFirst),
+        color: bmMeta.color,
+      });
+    }
+  }
+
+  const cmpChart = echarts.init(document.getElementById('detailCompareChart'));
+  cmpChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: compareData.map(d => d.name), textStyle: { color: '#8b949e' }, top: 0 },
+    grid: { top: 30, bottom: 30, left: 60, right: 20 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: '#8b949e', formatter: v => v.toFixed(2) } },
+    series: compareData.map(d => ({
+      name: d.name, type: 'line', data: d.data, smooth: true, symbol: 'none',
+      lineStyle: { color: d.color, width: d.name === meta.name ? 2.5 : 1.2 },
+    })),
+  });
+
+  // 回撤
+  let peak = -Infinity;
+  const drawdowns = navs.map(v => {
+    peak = Math.max(peak, v);
+    return ((v - peak) / peak * 100);
+  });
+  const ddChart = echarts.init(document.getElementById('detailDDChart'));
+  ddChart.setOption({
+    tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>回撤: ${p[0].value.toFixed(2)}%` },
+    grid: { top: 20, bottom: 30, left: 60, right: 20 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
+    yAxis: { type: 'value', axisLabel: { color: '#8b949e', formatter: '{value}%' } },
+    series: [{
+      type: 'line', data: drawdowns, symbol: 'none', smooth: true,
+      lineStyle: { color: '#ef4444', width: 1.5 },
+      areaStyle: { color: '#ef4444', opacity: 0.15 },
+    }],
+  });
+}
+
+// ============================================================
+// 渲染：对比
+// ============================================================
+function renderCompare() {
+  // 找到所有策略的共同日期范围
+  let allDates = new Set();
+  for (const data of Object.values(STRATEGY_DATA)) {
+    if (data) data.nav.forEach(d => allDates.add(d.date));
+  }
+  const dates = [...allDates].sort();
+
+  // 净值对比图
+  const series = [];
+  for (const [stype, data] of Object.entries(STRATEGY_DATA)) {
+    if (!data) continue;
+    const meta = STRATEGY_META[stype];
+    const navMap = {};
+    data.nav.forEach(d => navMap[d.date] = d.nav);
+    series.push({
+      name: meta.name, type: 'line', smooth: true, symbol: 'none',
+      data: dates.map(d => navMap[d] || null),
+      lineStyle: { color: meta.color, width: 2 },
+      connectNulls: true,
+    });
+  }
+  for (const [key, bm] of Object.entries(BENCHMARK_DATA)) {
+    if (!bm) continue;
+    const meta = BENCHMARK_META[key];
+    const navMap = {};
+    bm.nav.forEach(d => navMap[d.date] = d.nav);
+    // 归一化到策略起始
+    const firstStrategyDate = dates[0];
+    const bmFirst = navMap[firstStrategyDate] || bm.nav[0].nav;
+    series.push({
+      name: meta.name, type: 'line', smooth: true, symbol: 'none',
+      data: dates.map(d => navMap[d] ? navMap[d] / bmFirst : null),
+      lineStyle: { color: meta.color, width: 1.2, type: 'dashed' },
+      connectNulls: true,
+    });
+  }
+
+  const chart = echarts.init(document.getElementById('compareChart'));
+  chart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: series.map(s => s.name), textStyle: { color: '#8b949e' }, top: 0 },
+    grid: { top: 40, bottom: 30, left: 60, right: 20 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: '#8b949e', formatter: v => v.toFixed(2) } },
+    series,
+  });
+
+  // 对比表格
+  const tableData = SUMMARY.strategies.map(s => {
+    const meta = STRATEGY_META[s.strategy_type];
+    return `
+      <tr>
+        <td><span style="color:${meta.color};">●</span> ${s.name}</td>
+        <td style="color:${s.total_return>=0?'var(--up)':'var(--down)'};">${s.total_return>0?'+':''}${s.total_return}%</td>
+        <td style="color:${s.annual_return>=0?'var(--up)':'var(--down)'};">${s.annual_return>0?'+':''}${s.annual_return}%</td>
+        <td style="color:var(--down);">${s.max_drawdown}%</td>
+        <td>${s.sharpe}</td>
+        <td>${s.calmar}</td>
+        <td>${s.win_rate}%</td>
+        <td>${s.volatility}%</td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('compareTable').innerHTML = `
+    <table>
+      <thead>
+        <tr><th>策略</th><th>总收益</th><th>年化</th><th>最大回撤</th><th>夏普</th><th>Calmar</th><th>胜率</th><th>波动率</th></tr>
+      </thead>
+      <tbody>${tableData}</tbody>
+    </table>
+  `;
+
+  // 回撤对比
+  const ddSeries = [];
+  for (const [stype, data] of Object.entries(STRATEGY_DATA)) {
+    if (!data) continue;
+    const meta = STRATEGY_META[stype];
+    const navMap = {};
+    data.nav.forEach(d => navMap[d.date] = d.nav);
+    let peak = -Infinity;
+    const ddData = dates.map(d => {
+      const v = navMap[d];
+      if (v === undefined) return null;
+      peak = Math.max(peak, v);
+      return (v - peak) / peak * 100;
+    });
+    ddSeries.push({
+      name: meta.name, type: 'line', smooth: true, symbol: 'none',
+      data: ddData, lineStyle: { color: meta.color, width: 1.5 },
+      connectNulls: true,
+    });
+  }
+  const ddChart = echarts.init(document.getElementById('drawdownChart'));
+  ddChart.setOption({
+    tooltip: { trigger: 'axis', formatter: p => p.map(x => `${x.seriesName}: ${x.value ? x.value.toFixed(2) : 'N/A'}%`).join('<br/>') },
+    legend: { data: ddSeries.map(s => s.name), textStyle: { color: '#8b949e' }, top: 0 },
+    grid: { top: 40, bottom: 30, left: 60, right: 20 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
+    yAxis: { type: 'value', axisLabel: { color: '#8b949e', formatter: '{value}%' } },
+    series: ddSeries,
+  });
+}
+
+// ============================================================
+// 渲染：持仓
+// ============================================================
+function renderHoldings() {
+  const tabs = document.getElementById('holdingsTabs');
+  tabs.innerHTML = '';
+  let firstKey = null;
+  for (const [stype, data] of Object.entries(STRATEGY_DATA)) {
+    if (!data || !data.holdings) continue;
+    if (!firstKey) firstKey = stype;
+    const meta = STRATEGY_META[stype];
+    const tab = document.createElement('div');
+    tab.className = 'tab';
+    tab.textContent = meta.name;
+    tab.dataset.stype = stype;
+    tab.onclick = () => {
+      document.querySelectorAll('#holdingsTabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      renderHoldingsTable(stype);
+    };
+    tabs.appendChild(tab);
+  }
+  if (firstKey) {
+    tabs.firstChild.classList.add('active');
+    renderHoldingsTable(firstKey);
+  }
+}
+
+function renderHoldingsTable(stype) {
+  const data = STRATEGY_DATA[stype];
+  if (!data || !data.holdings) {
+    document.getElementById('holdingsTable').innerHTML = '<p style="color:var(--text-muted);">暂无持仓数据</p>';
+    return;
+  }
+  const holdings = data.holdings;
+  const etfNames = Object.keys(STRATEGY_META).length > 0 && holdings[0]
+    ? Object.keys(holdings[0]).filter(k => k !== 'date') : ['价值ETF', '成长ETF'];
+
+  let html = '<table><thead><tr><th>调仓日期</th>';
+  etfNames.forEach(n => html += `<th>${n}</th>`);
+  html += '</tr></thead><tbody>';
+  for (const h of [...holdings].reverse()) {
+    html += `<tr><td>${h.date}</td>`;
+    etfNames.forEach(n => {
+      const v = h[n];
+      const pct = (v * 100).toFixed(1);
+      const bg = v > 0.5 ? 'rgba(239,68,68,0.15)' : v < 0.5 ? 'rgba(34,197,94,0.15)' : 'transparent';
+      html += `<td style="background:${bg};">${pct}%</td>`;
+    });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('holdingsTable').innerHTML = html;
+}
+
+// ============================================================
+// 导航
+// ============================================================
+function setupNav() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.onclick = () => {
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
+      const section = item.dataset.section;
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(`section-${section}`).classList.add('active');
+
+      if (section === 'compare') renderCompare();
+      if (section === 'holdings') renderHoldings();
+      if (section === 'detail') renderDetailSelector();
+
+      // 重绘图表
+      setTimeout(() => {
+        for (const chart of Object.values(charts)) chart && chart.resize();
+      }, 100);
+    };
+  });
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+async function init() {
+  await loadAllData();
+  if (!SUMMARY) {
+    document.getElementById('strategyCards').innerHTML =
+      '<div class="card"><p>数据加载失败，请刷新重试。</p></div>';
+    return;
+  }
+  renderOverview();
+  renderDetailSelector();
+  setupNav();
+}
+
+window.addEventListener('resize', () => {
+  for (const chart of Object.values(charts)) chart && chart.resize();
+  // ECharts实例自适应
+  document.querySelectorAll('[id^="mini-chart-"], #compareChart, #drawdownChart').forEach(el => {
+    const inst = echarts.getInstanceByDom(el);
+    if (inst) inst.resize();
+  });
+});
+
+init();
+</script>
+
+</body>
+</html>
