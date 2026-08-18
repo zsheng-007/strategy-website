@@ -44,11 +44,10 @@ ETF_CONFIG = {
 
 BENCHMARK_CONFIG = {
     '000922': {'name': '中证A500', 'market': 'sh', 'file': 'a500'},
-    '000905': {'name': '中证500', 'market': 'sh', 'file': 'csi500'},
+    'us.INX': {'name': '标普500', 'market': 'us', 'file': 'sp500'},
 }
 
-# 偏股混合基金指数885001(Wind独家)无法从免费源获取，用中证500替代
-# 在网站中注明此替代关系
+# 偏股混合基金指数885001(Wind独家)无法从免费源获取，改用标普500作为海外基准
 
 REBALANCE_WEEKDAY = 4  # 周五
 MOMENTUM_LOOKBACK = 4  # 动量回看周数
@@ -64,8 +63,14 @@ BENCHMARK_DIR = os.path.join(OUTPUT_DIR, 'benchmarks')
 # 数据获取 - 腾讯行情API
 # ============================================================
 def fetch_kline_tencent(code, market, start_date='2018-01-01', end_date='2026-12-31', adjust='qfq', retry=3):
-    """从腾讯API获取日K线数据"""
-    symbol = f'{market}{code}'
+    """从腾讯API获取日K线数据
+    A股: market=sh/sz, code=数字代码 → symbol=sh512040
+    美股: market=us, code=us.INX → symbol=us.INX
+    """
+    if market == 'us':
+        symbol = code  # 美股code本身就是完整symbol（如us.INX）
+    else:
+        symbol = f'{market}{code}'
     # 腾讯API日频最多返回640条
     url = f'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,{adjust}'
 
@@ -449,7 +454,7 @@ def main():
         'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'etfs': {k: {kk: vv for kk, vv in v.items()} for k, v in ETF_CONFIG.items()},
         'benchmarks': {k: {kk: vv for kk, vv in v.items()} for k, v in BENCHMARK_CONFIG.items()},
-        'benchmark_note': '偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，以中证500指数(000905)替代',
+        'benchmark_note': '偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，改用标普500指数(us.INX)作为海外基准',
         'strategies': all_metrics,
         'data_range': {
             'start': prices.index[0].strftime('%Y-%m-%d'),
