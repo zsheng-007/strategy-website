@@ -266,7 +266,7 @@ tbody tr:hover { background: var(--bg-hover); }
       <div class="card-subtitle">基于价值ETF(512040)与成长ETF(159259)的多策略体系，周频调仓</div>
       <div class="note">
         ℹ️ 回测区间：<span id="dataRange">--</span> ｜ 调仓频率：周频（每周五） ｜ 交易成本：0.1%<br>
-        对比基准：中证A500(000922) + 中证500(000905，替代偏股混合基金指数885001)
+        对比基准：中证A500(000922) + 标普500(us.INX，海外基准)
       </div>
     </div>
     <div class="strategy-grid" id="strategyCards">
@@ -324,7 +324,7 @@ tbody tr:hover { background: var(--bg-hover); }
         <p style="margin-bottom:12px;"><strong style="color:var(--text-primary);">对比基准：</strong></p>
         <ul style="margin-left:20px; margin-bottom:12px;">
           <li>中证A500指数(000922) — 反映A股核心资产整体表现</li>
-          <li>中证500指数(000905) — 因偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，以此替代</li>
+          <li>标普500指数(us.INX) — 海外基准，对比A股策略与美股表现</li>
         </ul>
         <p style="margin-bottom:12px;"><strong style="color:var(--text-primary);">风险提示：</strong>本站内容仅供个人研究参考，不构成投资建议。过往业绩不代表未来表现。投资有风险，入市需谨慎。</p>
         <p><strong style="color:var(--text-primary);">技术栈：</strong>Python回测引擎 + ECharts可视化 + GitHub Pages部署</p>
@@ -354,7 +354,7 @@ const STRATEGY_META = {
 
 const BENCHMARK_META = {
   'a500': { name: '中证A500', color: '#22c55e' },
-  'csi500': { name: '中证500', color: '#a855f7' },
+  'sp500': { name: '标普500', color: '#a855f7' },
 };
 
 // ============================================================
