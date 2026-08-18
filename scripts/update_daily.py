@@ -2,6 +2,7 @@
 """
 志胜投资策略 - 日频数据更新脚本
 拉取最新行情 → 更新策略净值JSON → 更新基准JSON → 更新summary.json
+检测调仓日推送消息通知
 用于GitHub Actions定时任务，每个交易日收盘后自动运行
 """
 
@@ -26,7 +27,97 @@ from backtest import (
     fetch_kline_tencent, prepare_prices, prepare_benchmarks,
     strategy_momentum_rotation, strategy_equal_weight, strategy_relative_strength,
     calc_nav, calc_metrics, strategy_to_json, benchmark_to_json,
+    get_rebalance_dates,
 )
+
+# 推送通知配置（通过环境变量传入，避免硬编码）
+# 支持企业微信机器人 / 钉钉机器人 / 飞书机器人 / 自定义webhook
+# 在GitHub Actions secrets中设置 NOTIFY_WEBHOOK 和 NOTIFY_SECRET
+NOTIFY_WEBHOOK = os.environ.get('NOTIFY_WEBHOOK', '')  # webhook地址
+NOTIFY_SECRET = os.environ.get('NOTIFY_SECRET', '')    # 签名密钥(钉钉用)
+
+
+def send_notification(title, content):
+    """发送调仓消息通知"""
+    if not NOTIFY_WEBHOOK:
+        print("\n  [通知] 未配置NOTIFY_WEBHOOK，跳过推送。")
+        print(f"  [通知] 标题: {title}")
+        print(f"  [通知] 内容:\n{content}")
+        return False
+
+    # 判断webhook类型
+    if 'qyapi.weixin.qq.com' in NOTIFY_WEBHOOK:
+        # 企业微信机器人
+        data = {
+            'msgtype': 'markdown',
+            'markdown': {'content': f"### {title}\n\n{content}"}
+        }
+    elif 'oapi.dingtalk.com' in NOTIFY_WEBHOOK:
+        # 钉钉机器人
+        data = {
+            'msgtype': 'markdown',
+            'markdown': {'title': title, 'text': f"### {title}\n\n{content}"}
+        }
+    elif 'open.feishu.cn' in NOTIFY_WEBHOOK:
+        # 飞书机器人
+        data = {
+            'msg_type': 'text',
+            'content': {'text': f"{title}\n\n{content}"}
+        }
+    else:
+        # 通用webhook
+        data = {'title': title, 'content': content, 'text': f"{title}\n\n{content}"}
+
+    try:
+        r = requests.post(NOTIFY_WEBHOOK, json=data, timeout=10, headers={'Content-Type': 'application/json'})
+        if r.status_code == 200:
+            print(f"  [通知] ✓ 推送成功: {title}")
+            return True
+        else:
+            print(f"  [通知] ✗ 推送失败: HTTP {r.status_code} {r.text[:100]}")
+            return False
+    except Exception as e:
+        print(f"  [通知] ✗ 推送异常: {e}")
+        return False
+
+
+def check_rebalance_and_notify(prices, positions_dict, all_metrics):
+    """检查今日是否为调仓日，若是则推送消息"""
+    today = prices.index[-1]
+    is_rebal_day = today.weekday() == REBALANCE_WEEKDAY
+
+    # 构建消息内容
+    lines = []
+    lines.append(f"**日期**: {today.strftime('%Y-%m-%d')} ({'调仓日' if is_rebal_day else '非调仓日'})")
+    lines.append("")
+    lines.append("**各策略最新持仓**:")
+    lines.append("")
+
+    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None)]:
+        positions = positions_dict.get(stype)
+        if positions is not None and len(positions) > 0:
+            latest_pos = positions.iloc[-1]
+            pos_str = ' | '.join([f"{c}: {v*100:.0f}%" for c, v in latest_pos.items()])
+
+            # 找对应metrics
+            m = next((x for x in all_metrics if x.get('strategy_type') == stype), {})
+            ret = m.get('total_return', 0)
+
+            lines.append(f"- **{name}**: {pos_str}")
+            lines.append(f"  累计收益: {'+' if ret >= 0 else ''}{ret}%")
+
+    lines.append("")
+    lines.append(f"> 数据更新时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"> [查看网站](https://zsheng-007.github.io/strategy-website/)")
+
+    content = '\n'.join(lines)
+
+    if is_rebal_day:
+        title = f"📊 志胜策略调仓提醒 {today.strftime('%m-%d')}"
+    else:
+        title = f"📈 志胜策略日报 {today.strftime('%m-%d')}"
+
+    return send_notification(title, content), is_rebal_day
 
 
 def main():
@@ -70,6 +161,8 @@ def main():
     ]
 
     all_metrics = []
+    all_positions = {}
+
     for name, stype, func in strategies:
         print(f"  计算 {name}...")
         returns, positions = func(prices)
@@ -77,6 +170,7 @@ def main():
         metrics = calc_metrics(returns, name)
         metrics['strategy_type'] = stype
         all_metrics.append(metrics)
+        all_positions[stype] = positions
 
         # 保存JSON
         jdata = strategy_to_json(nav, name, stype, metrics, positions)
@@ -102,7 +196,7 @@ def main():
         'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'etfs': {k: {kk: vv for kk, vv in v.items()} for k, v in ETF_CONFIG.items()},
         'benchmarks': {k: {kk: vv for kk, vv in v.items()} for k, v in BENCHMARK_CONFIG.items()},
-        'benchmark_note': '偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，以中证500指数(000905)替代',
+        'benchmark_note': '偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，改用标普500指数(us.INX)作为海外基准',
         'strategies': all_metrics,
         'data_range': {
             'start': prices.index[0].strftime('%Y-%m-%d'),
@@ -125,6 +219,10 @@ def main():
     print("\n各策略最新表现:")
     for m in all_metrics:
         print(f"  {m['name']}: 总收益{m['total_return']}% 年化{m['annual_return']}% 回撤{m['max_drawdown']}% 夏普{m['sharpe']}")
+
+    # 7. 调仓检测与推送通知
+    print("\n=== 检查调仓与推送通知 ===")
+    check_rebalance_and_notify(prices, all_positions, all_metrics)
 
 
 if __name__ == '__main__':
