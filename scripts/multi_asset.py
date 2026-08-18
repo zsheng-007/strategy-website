@@ -44,9 +44,17 @@ GLOBAL_ETF_POOL = {
     # 跨境ETF - 欧洲
     '513030': {'name': '德国ETF', 'market': 'sh', 'region': '德国', 'class': '股票'},
     '513980': {'name': '法国CAC40ETF', 'market': 'sh', 'region': '法国', 'class': '股票'},
-    # 跨境ETF - 亚太/中东
+    # 跨境ETF - 亚太
     '159632': {'name': '港股通科技ETF', 'market': 'sz', 'region': '中国香港', 'class': '股票'},
     '513330': {'name': '恒生中国企业ETF', 'market': 'sh', 'region': '中国香港', 'class': '股票'},
+    # 商品ETF - 黄金
+    '518880': {'name': '黄金ETF', 'market': 'sh', 'region': '全球', 'class': '商品'},
+    # 商品ETF - 有色金属
+    '515170': {'name': '有色金属ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
+    # 商品ETF - 能源化工
+    '159981': {'name': '能源化工ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
+    # 商品ETF - 煤炭
+    '515220': {'name': '煤炭ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
 }
 
 REBALANCE_WEEKDAY = 4  # 周五（月频的第一个周五）
