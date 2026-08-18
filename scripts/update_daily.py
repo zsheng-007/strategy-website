@@ -95,7 +95,7 @@ def check_rebalance_and_notify(prices, positions_dict, all_metrics):
     lines.append("**各策略最新持仓**:")
     lines.append("")
 
-    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(双因子)', 'industry_rotation', None), ('多元配置(风险平价)', 'multi_asset', None)]:
+    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(三因子)', 'industry_rotation', None), ('多元配置(风险平价)', 'multi_asset', None)]:
         positions = positions_dict.get(stype)
         if positions is not None and len(positions) > 0:
             latest_pos = positions.iloc[-1]
@@ -197,12 +197,12 @@ def main():
         print(f"    -> 已更新: {path}")
 
     # 3.5 行业轮动策略（独立数据源）
-    print("\n  计算行业轮动(双因子)...")
+    print("\n  计算行业轮动(三因子)...")
     try:
         ind_etf_data = industry_rotation.fetch_all_etf_data()
         if len(ind_etf_data) >= 5:
             ind_returns, ind_positions, ind_prices, ind_holdings = industry_rotation.backtest_industry_rotation(ind_etf_data)
-            ind_metrics = industry_rotation.calc_metrics(ind_returns, '行业轮动(双因子)')
+            ind_metrics = industry_rotation.calc_metrics(ind_returns, '行业轮动(三因子)')
             ind_metrics['strategy_type'] = 'industry_rotation'
             all_metrics.append(ind_metrics)
             # 行业轮动的positions格式不同，用holdings构建虚拟positions
