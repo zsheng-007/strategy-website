@@ -35,9 +35,7 @@ GLOBAL_ETF_POOL = {
     # 跨境ETF - 美股
     '513100': {'name': '纳指ETF', 'market': 'sh', 'region': '美国', 'class': '股票'},
     '513500': {'name': '标普500ETF', 'market': 'sh', 'region': '美国', 'class': '股票'},
-    '513400': {'name': '道琼斯ETF', 'market': 'sh', 'region': '美国', 'class': '股票'},
-    # 跨境ETF - 港股（精简为2只，去掉重复）
-    '513180': {'name': '恒生科技ETF', 'market': 'sh', 'region': '中国香港', 'class': '股票'},
+    # 跨境ETF - 港股（保留港股通科技，夏普1.274远优于恒生科技0.166）
     '159632': {'name': '港股通科技ETF', 'market': 'sz', 'region': '中国香港', 'class': '股票'},
     # 跨境ETF - 日本
     '513520': {'name': '日经ETF', 'market': 'sh', 'region': '日本', 'class': '股票'},
@@ -51,9 +49,7 @@ GLOBAL_ETF_POOL = {
     '518880': {'name': '黄金ETF', 'market': 'sh', 'region': '全球', 'class': '商品'},
     # 商品ETF - 有色金属
     '515170': {'name': '有色金属ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
-    # 商品ETF - 能源化工
-    '159981': {'name': '能源化工ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
-    # 商品ETF - 煤炭
+    # 商品ETF - 煤炭（保留煤炭，收益+17.3%优于能源化工-5.2%）
     '515220': {'name': '煤炭ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
     # 债券ETF - 国债（低波动，降低组合回撤）
     '511260': {'name': '十年国债ETF', 'market': 'sh', 'region': '中国', 'class': '债券'},
