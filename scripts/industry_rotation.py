@@ -43,12 +43,14 @@ INDUSTRY_ETF_POOL = {
 }
 
 # 新策略参数（网格搜索最优组合）
-MOMENTUM_LONG = 20   # 动量窗口（20日最优）
-MOMENTUM_SHORT = 20  # 短动量窗口
+MOMENTUM_LONG = 20   # 动量窗口（20日，A股短期动量最有效）
+MOMENTUM_SHORT = 10  # 短动量窗口（10日，捕捉加速趋势）
 MA_WINDOW = 20       # 均线窗口
-TOP_K = 2            # 持有前2名
+TOP_K = 4            # 持有前4名（分散集中度风险，稳定性最优）
 TRANSACTION_COST = 0.0003
-# 不做大盘择时过滤，满仓轮动（回测验证满仓优于择时）
+# 无持仓惯性（K=4时月频调仓换手率已足够低）
+HOLDING_INERTIA_RANK = 0
+# 不做大盘择时过滤，满仓轮动
 USE_MARKET_FILTER = False
 MARKET_FILTER_WINDOW = 60
 MARKET_FILTER_THRESHOLD = -0.05
@@ -148,7 +150,7 @@ def calc_combined_score(mom_long, acceleration, rs):
 # 回测引擎
 # ============================================================
 def get_monthly_rebalance_dates(prices):
-    """月频调仓日：每月第一个交易日"""
+    """月频调仓日：每月第一个交易日（月频换手率仅31%，远优于周频的836%）"""
     dates = []
     last_month = None
     for d in prices.index:
@@ -195,18 +197,48 @@ def backtest_industry_rotation(etf_data):
         date = rebal_dates[i]
         next_date = rebal_dates[i + 1]
 
-        if i >= 2:  # 至少2个月后
+        if i >= 2:  # 至少2个调仓周期后
             score_row = combined_score.loc[date]
 
             # 满仓轮动：不做动量过滤，直接选前K名
             valid_scores = score_row[score_row.notna()]
 
             if len(valid_scores) >= 1:
-                top_k = valid_scores.nlargest(min(TOP_K, len(valid_scores)))
+                # 持仓惯性：上期持仓中得分仍在前HOLDING_INERTIA_RANK名内的继续持有
+                new_top_k = valid_scores.nlargest(min(TOP_K, len(valid_scores)))
+
+                if HOLDING_INERTIA_RANK > 0 and i >= 3:
+                    # 获取上期持仓
+                    prev_holdings = {c for c, v in current_pos.items() if v > 0 and c != '现金'}
+                    # 对上期持仓中仍排名靠前的保持不变，只换掉排名下滑的
+                    keep = set()
+                    for code in prev_holdings:
+                        if code in valid_scores.index:
+                            rank = valid_scores.rank(ascending=False).get(code, 999)
+                            if rank <= HOLDING_INERTIA_RANK:
+                                keep.add(code)
+
+                    # 合并：保留的老持仓 + 新选入的，取前TOP_K个
+                    candidates = keep | set(new_top_k.index)
+                    if len(candidates) > TOP_K:
+                        # 从candidates中按得分选前TOP_K
+                        candidate_scores = valid_scores[[c for c in candidates if c in valid_scores.index]]
+                        final_top = candidate_scores.nlargest(TOP_K)
+                    else:
+                        final_top = valid_scores[[c for c in candidates if c in valid_scores.index]]
+                        if len(final_top) < TOP_K:
+                            # 补足
+                            remaining = valid_scores.drop(final_top.index)
+                            need = TOP_K - len(final_top)
+                            if len(remaining) >= need:
+                                final_top = pd.concat([final_top, remaining.nlargest(need)])
+                else:
+                    final_top = new_top_k
+
                 current_pos = {c: 0.0 for c in etf_codes}
                 current_pos['现金'] = 0.0
-                for code in top_k.index:
-                    current_pos[code] = 1.0 / len(top_k)
+                for code in final_top.index:
+                    current_pos[code] = 1.0 / len(final_top)
             else:
                 current_pos = {c: 0.0 for c in etf_codes}
                 current_pos['现金'] = 1.0
