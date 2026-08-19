@@ -96,7 +96,7 @@ def check_rebalance_and_notify(prices, positions_dict, all_metrics):
     lines.append("**各策略最新持仓**:")
     lines.append("")
 
-    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动1号(月频)', 'industry_rotation', None), ('行业轮动2号(高频)', 'industry_rotation_v2', None), ('多元配置(风险平价)', 'multi_asset', None)]:
+    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(高频)', 'industry_rotation_v2', None), ('多元配置(风险平价)', 'multi_asset', None)]:
         positions = positions_dict.get(stype)
         if positions is not None and len(positions) > 0:
             latest_pos = positions.iloc[-1]
@@ -198,30 +198,13 @@ def main():
             json.dump(jdata, f, ensure_ascii=False)
         print(f"    -> 已更新: {path}")
 
-    # 3.5 行业轮动策略（独立数据源）
-    print("\n  计算行业轮动(三因子)...")
-    try:
-        ind_etf_data = industry_rotation.fetch_all_etf_data()
-        if len(ind_etf_data) >= 5:
-            ind_returns, ind_positions, ind_prices, ind_holdings = industry_rotation.backtest_industry_rotation(ind_etf_data)
-            ind_metrics = industry_rotation.calc_metrics(ind_returns, '行业轮动(三因子)')
-            ind_metrics['strategy_type'] = 'industry_rotation'
-            all_metrics.append(ind_metrics)
-            # 行业轮动的positions格式不同，用holdings构建虚拟positions
-            all_positions['industry_rotation'] = ind_positions
-            # 保存JSON
-            industry_rotation.save_strategy_json(ind_returns, ind_positions, ind_holdings, ind_metrics)
-            print(f"    -> 已更新: industry_rotation.json")
-    except Exception as e:
-        print(f"    行业轮动1号更新失败: {e}")
-
-    # 3.55 行业轮动2号策略（高频版，与1号PK）
+    # 3.5 行业轮动2号策略（高频三因子）
     print("\n  计算行业轮动2号(高频三因子)...")
     try:
         v2_etf_data = industry_rotation_v2.fetch_all_etf_data()
         if len(v2_etf_data) >= 5:
             v2_returns, v2_positions, v2_prices, v2_holdings = industry_rotation_v2.backtest_industry_rotation_v2(v2_etf_data)
-            v2_metrics = industry_rotation_v2.calc_metrics(v2_returns, '行业轮动2号(高频三因子)')
+            v2_metrics = industry_rotation_v2.calc_metrics(v2_returns, '行业轮动(高频三因子)')
             v2_metrics['strategy_type'] = 'industry_rotation_v2'
             all_metrics.append(v2_metrics)
             all_positions['industry_rotation_v2'] = v2_positions
