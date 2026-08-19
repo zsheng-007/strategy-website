@@ -63,7 +63,7 @@ VOLATILITY_WINDOW = 60  # 60日波动率
 TRANSACTION_COST = 0.0003  # 单边万分之三
 MIN_WEIGHT = 0.03  # 最小权重3%
 MAX_WEIGHT = 0.30  # 最大权重30%
-WEIGHT_CLIP = 0.25  # 权重上限裁剪
+WEIGHT_CLIP = 0.20  # 单只权重上限20%（降低集中度）
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(BASE_DIR, 'data')
@@ -134,26 +134,63 @@ def calc_volatility(prices_df, window=VOLATILITY_WINDOW):
     return vol
 
 
-def risk_parity_weights(vol_row):
+def risk_parity_weights(vol_row, cov_matrix=None):
     """
-    风险平价权重分配
-    每个资产的风险贡献相等 → 权重 ∝ 1/波动率
+    风险平价权重分配（考虑相关性）
+    使用迭代法求解：使每个资产的风险贡献相等
+    若cov_matrix为None则退化为1/波动率方法
     """
-    # 去除NaN
     valid_vol = vol_row.dropna()
     if len(valid_vol) == 0:
         return pd.Series(0, index=vol_row.index)
 
-    # 1/波动率
-    inv_vol = 1.0 / valid_vol
+    valid_codes = valid_vol.index.tolist()
 
-    # 归一化
-    weights = inv_vol / inv_vol.sum()
+    if cov_matrix is not None and len(cov_matrix) > 0:
+        # 考虑协方差矩阵的完整风险平价（迭代法）
+        cov = cov_matrix.loc[valid_codes, valid_codes].values
+        n = len(valid_codes)
+
+        # 初始权重：1/波动率
+        vols = np.array([valid_vol[c] for c in valid_codes])
+        w = (1.0 / vols)
+        w = w / w.sum()
+
+        # 迭代优化：使风险贡献相等
+        for _ in range(100):
+            # 计算各资产风险贡献
+            portfolio_var = w @ cov @ w
+            if portfolio_var <= 0:
+                break
+            marginal_contrib = cov @ w
+            risk_contrib = w * marginal_contrib
+            target_contrib = portfolio_var / n  # 等贡献目标
+
+            # 调整权重
+            adj = np.sqrt(target_contrib / np.maximum(risk_contrib, 1e-10))
+            w = w * adj
+            w = w / w.sum()
+
+        weights = pd.Series(w, index=valid_codes)
+    else:
+        # 退化：1/波动率方法
+        inv_vol = 1.0 / valid_vol
+        weights = inv_vol / inv_vol.sum()
 
     # 裁剪极端权重
     weights = weights.clip(upper=WEIGHT_CLIP)
-    # 重新归一化
     weights = weights / weights.sum()
+
+    # 最小权重
+    for code in weights.index:
+        if weights[code] < MIN_WEIGHT:
+            weights[code] = MIN_WEIGHT
+    weights = weights / weights.sum()
+
+    # 填充
+    full_weights = pd.Series(0.0, index=vol_row.index)
+    full_weights[weights.index] = weights
+    return full_weights
 
     # 设置最小权重
     for code in weights.index:
@@ -220,6 +257,9 @@ def backtest_multi_asset(etf_data):
     # 计算波动率和动量
     vol_df = calc_volatility(prices)
     mom_df = calc_momentum(prices)
+    # 计算滚动协方差矩阵（用于考虑相关性的风险平价）
+    daily_returns_raw = prices.pct_change().fillna(0)
+    cov_window = VOLATILITY_WINDOW  # 60日协方差窗口
 
     # 获取调仓日（月频）
     rebal_dates = get_monthly_rebalance_dates(prices)
@@ -246,9 +286,15 @@ def backtest_multi_asset(etf_data):
             valid_vol = vol_row[valid_mask]
 
             if len(valid_vol) >= 2:
-                # 风险平价权重
-                weights = risk_parity_weights(vol_row[valid_mask])
-                # 再次确保权重非0
+                # 计算当日协方差矩阵（考虑相关性）
+                ret_up_to_date = daily_returns_raw.loc[:date]
+                if len(ret_up_to_date) > cov_window:
+                    cov_matrix = ret_up_to_date.iloc[-cov_window:].cov() * 252
+                else:
+                    cov_matrix = None
+
+                # 风险平价权重（考虑相关性，权重上限20%）
+                weights = risk_parity_weights(vol_row[valid_mask], cov_matrix)
                 weights = weights[weights > 0]
 
                 current_pos = {c: 0.0 for c in etf_codes}
@@ -256,9 +302,10 @@ def backtest_multi_asset(etf_data):
                 for code in weights.index:
                     current_pos[code] = float(weights[code])
             elif len(valid_vol) >= 1:
-                # 只有1个有效标的，半仓
                 current_pos = {c: 0.0 for c in etf_codes}
                 current_pos['现金'] = 0.5
+                for code in selected_codes:
+                    current_pos[code] = 0.5 / len(selected_codes)
                 for code in valid_vol.index:
                     current_pos[code] = 0.5 / len(valid_vol)
             else:
