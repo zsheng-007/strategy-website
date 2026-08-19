@@ -47,7 +47,7 @@ MOMENTUM_LONG = 20   # 动量窗口（20日，A股短期动量最有效）
 MOMENTUM_SHORT = 10  # 短动量窗口（10日，捕捉加速趋势）
 MA_WINDOW = 20       # 均线窗口
 TOP_K = 4            # 持有前4名（分散集中度风险，稳定性最优）
-TRANSACTION_COST = 0.0003
+TRANSACTION_COST = 0.0005  # 单边万分之五（含滑点，行业ETF流动性参差）
 # 无持仓惯性（K=4时月频调仓换手率已足够低）
 HOLDING_INERTIA_RANK = 0
 # 不做大盘择时过滤，满仓轮动
@@ -192,6 +192,9 @@ def backtest_industry_rotation(etf_data):
     current_pos['现金'] = 1.0
 
     holdings_log = []
+    # 回撤止损跟踪变量
+    nav_tracker = 1.0  # 累计净值
+    peak_tracker = 1.0  # 历史最高净值
 
     for i in range(len(rebal_dates) - 1):
         date = rebal_dates[i]
@@ -202,6 +205,12 @@ def backtest_industry_rotation(etf_data):
 
             # 满仓轮动：不做动量过滤，直接选前K名
             valid_scores = score_row[score_row.notna()]
+
+            # 回撤止损：计算当前组合净值回撤
+            DRAWDOWN_THRESHOLD = -0.15  # 15%回撤才降仓（避免震荡市频繁触发）
+            DRAWDOWN_CUT = 0.5  # 降仓到50%
+            current_dd = (nav_tracker / peak_tracker) - 1
+            position_scale = DRAWDOWN_CUT if current_dd < DRAWDOWN_THRESHOLD else 1.0
 
             if len(valid_scores) >= 1:
                 # 持仓惯性：上期持仓中得分仍在前HOLDING_INERTIA_RANK名内的继续持有
@@ -236,9 +245,9 @@ def backtest_industry_rotation(etf_data):
                     final_top = new_top_k
 
                 current_pos = {c: 0.0 for c in etf_codes}
-                current_pos['现金'] = 0.0
+                current_pos['现金'] = 1.0 - position_scale
                 for code in final_top.index:
-                    current_pos[code] = 1.0 / len(final_top)
+                    current_pos[code] = position_scale * (1.0 / len(final_top))
             else:
                 current_pos = {c: 0.0 for c in etf_codes}
                 current_pos['现金'] = 1.0
@@ -256,6 +265,17 @@ def backtest_industry_rotation(etf_data):
         mask = (positions.index > date) & (positions.index <= next_date)
         for c in positions.columns:
             positions.loc[mask, c] = current_pos.get(c, 0.0)
+
+        # 更新回撤跟踪变量（用上一个调仓区间的收益）
+        if i > 0 and prev_date is not None:
+            period_mask = (prices.index > prev_date) & (prices.index <= date)
+            period_daily = daily_returns.loc[period_mask]
+            period_pos = positions.loc[period_mask, etf_codes]
+            period_ret = (period_pos.shift(1) * period_daily).sum(axis=1).fillna(0)
+            for r in period_ret:
+                nav_tracker *= (1 + r)
+                peak_tracker = max(peak_tracker, nav_tracker)
+        prev_date = date
 
     # 计算策略收益
     strategy_returns = pd.Series(0.0, index=prices.index)
