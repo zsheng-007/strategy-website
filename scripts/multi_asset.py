@@ -55,12 +55,16 @@ GLOBAL_ETF_POOL = {
     '159981': {'name': '能源化工ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
     # 商品ETF - 煤炭
     '515220': {'name': '煤炭ETF', 'market': 'sh', 'region': 'A股', 'class': '商品'},
+    # 债券ETF - 国债（低波动，降低组合回撤）
+    '511260': {'name': '十年国债ETF', 'market': 'sh', 'region': '中国', 'class': '债券'},
+    # 货币ETF - 现金管理（替代空仓时的现金）
+    '511990': {'name': '华宝添益', 'market': 'sh', 'region': '中国', 'class': '货币'},
 }
 
 REBALANCE_WEEKDAY = 4  # 周五（月频的第一个周五）
 MOMENTUM_LOOKBACK = 60  # 60日动量（约3个月）
 VOLATILITY_WINDOW = 60  # 60日波动率
-TRANSACTION_COST = 0.0003  # 单边万分之三
+TRANSACTION_COST = 0.0004  # 单边万分之四（跨境ETF流动性好但有时差滑点）
 MIN_WEIGHT = 0.03  # 最小权重3%
 MAX_WEIGHT = 0.30  # 最大权重30%
 WEIGHT_CLIP = 0.20  # 单只权重上限20%（降低集中度）
@@ -281,9 +285,20 @@ def backtest_multi_asset(etf_data):
             vol_row = vol_df.loc[date]
             mom_row = mom_df.loc[date]
 
-            # 动量过滤：只保留动量>0的标的
-            valid_mask = (mom_row > 0) & vol_row.notna() & (vol_row > 0)
+            # 动量过滤：只保留动量>0的标的（债券/货币不参与动量过滤）
+            BOND_CODES = ['511260', '511990']  # 债券和货币ETF
+            equity_codes = [c for c in vol_row.index if c not in BOND_CODES]
+            valid_mask = (mom_row > 0) & vol_row.notna() & (vol_row > 0) & pd.Series(True, index=vol_row.index)
+            # 只有权益/商品做动量过滤
+            for c in BOND_CODES:
+                if c in valid_mask.index:
+                    valid_mask[c] = False  # 债券不参与动量筛选
             valid_vol = vol_row[valid_mask]
+
+            # 固定债券配置比例（walk-forward最优参数）
+            BOND_ALLOC = 0.05  # 国债5%
+            CASH_ALLOC = 0.05  # 货币5%
+            EQUITY_ALLOC = 1.0 - BOND_ALLOC - CASH_ALLOC  # 权益/商品90%
 
             if len(valid_vol) >= 2:
                 # 计算当日协方差矩阵（考虑相关性）
@@ -293,14 +308,19 @@ def backtest_multi_asset(etf_data):
                 else:
                     cov_matrix = None
 
-                # 风险平价权重（考虑相关性，权重上限20%）
+                # 风险平价权重（在权益/商品标的内分配85%）
                 weights = risk_parity_weights(vol_row[valid_mask], cov_matrix)
-                weights = weights[weights > 0]
+                weights = weights[weights > 0] * EQUITY_ALLOC  # 按比例缩放
 
                 current_pos = {c: 0.0 for c in etf_codes}
                 current_pos['现金'] = 0.0
                 for code in weights.index:
                     current_pos[code] = float(weights[code])
+                # 固定配置债券和货币
+                if '511260' in etf_codes:
+                    current_pos['511260'] = BOND_ALLOC
+                if '511990' in etf_codes:
+                    current_pos['511990'] = CASH_ALLOC
             elif len(valid_vol) >= 1:
                 current_pos = {c: 0.0 for c in etf_codes}
                 current_pos['现金'] = 0.5
@@ -309,9 +329,13 @@ def backtest_multi_asset(etf_data):
                 for code in valid_vol.index:
                     current_pos[code] = 0.5 / len(valid_vol)
             else:
-                # 全部动量为负，空仓
+                # 全部权益/商品动量为负，配置债券+货币ETF（避险）
                 current_pos = {c: 0.0 for c in etf_codes}
-                current_pos['现金'] = 1.0
+                current_pos['现金'] = 0.0
+                # 配置国债和货币ETF
+                bond_codes = [c for c in ['511260', '511990'] if c in etf_codes]
+                for code in bond_codes:
+                    current_pos[code] = 1.0 / len(bond_codes)
 
         # 记录持仓（转中文名）
         holding = {'date': date.strftime('%Y-%m-%d')}
