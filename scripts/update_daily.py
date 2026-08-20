@@ -32,6 +32,7 @@ from backtest import (
 import industry_rotation
 import industry_rotation_v2
 import multi_asset
+import trend_rotation
 
 # 推送通知配置（通过环境变量传入，避免硬编码）
 # 支持企业微信机器人 / 钉钉机器人 / 飞书机器人 / 自定义webhook
@@ -96,7 +97,7 @@ def check_rebalance_and_notify(prices, positions_dict, all_metrics):
     lines.append("**各策略最新持仓**:")
     lines.append("")
 
-    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(高频)', 'industry_rotation_v2', None), ('多元配置(风险平价)', 'multi_asset', None)]:
+    for name, stype, _ in [('动量轮动', 'momentum', None), ('等权再平衡', 'equal_weight', None), ('相对强弱动态配比', 'relative_strength', None), ('行业轮动(高频)', 'industry_rotation_v2', None), ('趋势得分轮动', 'trend_rotation', None), ('多元配置(风险平价)', 'multi_asset', None)]:
         positions = positions_dict.get(stype)
         if positions is not None and len(positions) > 0:
             latest_pos = positions.iloc[-1]
@@ -109,6 +110,9 @@ def check_rebalance_and_notify(prices, positions_dict, all_metrics):
                         if c == '现金': display_name = '现金'
                     elif stype == 'industry_rotation_v2':
                         display_name = industry_rotation_v2.INDUSTRY_ETF_POOL.get(c, {}).get('name', c)
+                        if c == '现金': display_name = '现金'
+                    elif stype == 'trend_rotation':
+                        display_name = trend_rotation.TREND_ETF_POOL.get(c, {}).get('name', c)
                         if c == '现金': display_name = '现金'
                     elif stype == 'multi_asset':
                         display_name = multi_asset.GLOBAL_ETF_POOL.get(c, {}).get('name', c)
@@ -212,6 +216,21 @@ def main():
             print(f"    -> 已更新: industry_rotation_v2.json")
     except Exception as e:
         print(f"    行业轮动2号更新失败: {e}")
+
+    # 3.58 趋势得分轮动策略（复刻量化小白兔）
+    print("\n  计算趋势得分轮动(小白兔)...")
+    try:
+        tr_etf_data = trend_rotation.fetch_all_etf_data()
+        if len(tr_etf_data) >= 3:
+            tr_returns, tr_positions, tr_prices, tr_holdings = trend_rotation.backtest_trend_rotation(tr_etf_data)
+            tr_metrics = trend_rotation.calc_metrics(tr_returns, '趋势得分轮动(小白兔)')
+            tr_metrics['strategy_type'] = 'trend_rotation'
+            all_metrics.append(tr_metrics)
+            all_positions['trend_rotation'] = tr_positions
+            trend_rotation.save_strategy_json(tr_returns, tr_positions, tr_holdings, tr_metrics)
+            print(f"    -> 已更新: trend_rotation.json")
+    except Exception as e:
+        print(f"    趋势得分轮动更新失败: {e}")
 
     # 3.6 多元配置策略（跨境ETF，独立数据源）
     print("\n  计算多元配置(风险平价)...")
