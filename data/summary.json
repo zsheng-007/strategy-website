@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-08-20 09:18:20",
+  "update_time": "2026-08-20 17:58:21",
   "etfs": {
     "512040": {
       "name": "价值ETF",
@@ -85,6 +85,20 @@
       "end_date": "2026-08-20",
       "trading_days": 640,
       "strategy_type": "industry_rotation_v2"
+    },
+    {
+      "name": "趋势得分轮动(小白兔)",
+      "total_return": 64.49,
+      "annual_return": 21.65,
+      "max_drawdown": -27.6,
+      "sharpe": 0.781,
+      "calmar": 0.784,
+      "win_rate": 49.69,
+      "volatility": 27.33,
+      "start_date": "2023-12-28",
+      "end_date": "2026-08-20",
+      "trading_days": 640,
+      "strategy_type": "trend_rotation"
     },
     {
       "name": "多元配置(风险平价)",
