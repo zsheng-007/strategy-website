@@ -246,7 +246,7 @@ tbody tr:hover { background: var(--bg-hover); }
     <div class="logo">志胜投资策略</div>
     <div class="header-info">
       <span><span class="update-dot"></span>数据更新：<span id="updateTime">--</span></span>
-      <span>标的：价值ETF(512040) + 成长ETF(159259)</span>
+      <span>6大ETF量化策略 · 日频自动更新</span>
     </div>
   </div>
   <div class="nav header-inner" style="margin-top:8px;">
@@ -263,9 +263,9 @@ tbody tr:hover { background: var(--bg-hover); }
   <div class="section active" id="section-overview">
     <div class="card">
       <div class="card-title">投资策略概览</div>
-      <div class="card-subtitle">基于价值ETF(512040)与成长ETF(159259)的多策略体系，周频调仓</div>
+      <div class="card-subtitle">6大策略体系：价值/成长轮动 · 行业轮动 · 无行业全ETF轮动 · 多元资产配置</div>
       <div class="note">
-        ℹ️ 回测区间：<span id="dataRange">--</span> ｜ 调仓频率：周频（每周五） ｜ 交易成本：0.1%<br>
+        ℹ️ 回测区间：<span id="dataRange">--</span> ｜ 调仓频率：各策略独立（周频/信号触发/月频） ｜ 数据源：腾讯行情<br>
         对比基准：中证A500(000922) + 标普500(us.INX，海外基准)
       </div>
     </div>
@@ -276,14 +276,11 @@ tbody tr:hover { background: var(--bg-hover); }
 
   <!-- 策略详情 -->
   <div class="section" id="section-detail">
-    <div id="detailContent">
-      <div class="card">
-        <div class="card-title">选择策略查看详情</div>
-        <div class="card-subtitle">点击下方策略卡片进入详情页</div>
-        <div id="detailSelector" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"></div>
-      </div>
-      <div id="detailBody"></div>
+    <div class="card">
+      <div class="card-title">策略详情（全部直接展示）</div>
+      <div class="card-subtitle">每个策略的回测指标、净值曲线、基准对比与回撤曲线依次平铺，点击总览卡片可快速定位</div>
     </div>
+    <div id="detailBody"></div>
   </div>
 
   <!-- 策略对比 -->
@@ -480,45 +477,61 @@ function renderMiniChart(stype) {
 }
 
 // ============================================================
-// 渲染：详情
+// 渲染：详情（全部策略直接平铺展示）
 // ============================================================
-function renderDetailSelector() {
-  const container = document.getElementById('detailSelector');
-  container.innerHTML = '';
-  for (const s of SUMMARY.strategies) {
-    const btn = document.createElement('div');
-    btn.className = 'badge';
-    btn.style.cursor = 'pointer';
-    btn.style.padding = '6px 16px';
-    btn.textContent = s.name;
-    btn.onclick = () => showDetail(s.strategy_type);
-    container.appendChild(btn);
+function fmtCurrentHolding(data) {
+  // 优先用 current_holding 字段；否则回退到 holdings 最后一条
+  let ch = data.current_holding;
+
+  // 小白兔事件流格式：{date, action, etf, score}
+  if (ch && ch.etf) {
+    return `${ch.etf} ${Math.round((ch.weight || 1) * 100)}%`;
   }
+  // 权重字典格式：{date, 'ETF名': 权重}
+  if (ch && typeof ch === 'object') {
+    const items = Object.keys(ch).filter(k => k !== 'date');
+    if (items.length) {
+      return items.filter(k => ch[k] > 0.001).map(k => `${k} ${Math.round(ch[k] * 100)}%`).join(' · ') || '空仓';
+    }
+  }
+
+  // 回退：从 holdings 解析
+  const hs = data.holdings;
+  if (hs && hs.length) {
+    const last = hs[0];  // JSON中已倒序（最新在前）
+    if (last.action) {
+      return `${last.etf} 100%`;
+    }
+    const items = Object.keys(last).filter(k => k !== 'date' && last[k] > 0.001);
+    if (items.length) {
+      return items.map(k => `${k} ${Math.round(last[k] * 100)}%`).join(' · ');
+    }
+  }
+  return '暂无';
 }
 
-function showDetail(stype) {
-  // 切换到详情section
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelector('[data-section="detail"]').classList.add('active');
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById('section-detail').classList.add('active');
+function renderAllDetails() {
+  const body = document.getElementById('detailBody');
+  if (!body) return;
+  let html = '';
+  for (const s of (SUMMARY ? SUMMARY.strategies : [])) {
+    const stype = s.strategy_type;
+    const data = STRATEGY_DATA[stype];
+    if (!data) continue;
+    const meta = STRATEGY_META[stype];
+    const m = data.metrics;
+    const retClass = m.total_return >= 0 ? 'pos' : 'neg';
+    const ddClass = m.max_drawdown >= 0 ? 'pos' : 'neg';
+    const freq = stype === 'no_industry' ? '信号触发调仓' : (stype === 'multi_asset' ? '月频再平衡' : (stype.includes('industry') ? '周频轮动' : '周频调仓'));
 
-  const data = STRATEGY_DATA[stype];
-  if (!data) return;
-  const meta = STRATEGY_META[stype];
-  const m = data.metrics;
-
-  const retClass = m.total_return >= 0 ? 'pos' : 'neg';
-  const ddClass = m.max_drawdown >= 0 ? 'pos' : 'neg';
-
-  document.getElementById('detailBody').innerHTML = `
-    <div class="card">
+    html += `
+    <div class="card" id="detail-${stype}" style="border-top:3px solid ${meta.color};">
       <div class="detail-header">
-        <span class="back-btn" onclick="renderDetailSelector();document.getElementById('detailBody').innerHTML='';">← 返回</span>
         <div class="card-title" style="color:${meta.color};">${m.name}</div>
-        <span class="badge gold">周频调仓</span>
+        <span class="badge gold">${freq}</span>
       </div>
-      <div class="card-subtitle">${meta.desc}</div>
+      <div class="card-subtitle">${meta.desc || ''}</div>
+      <div class="note">📅 回测区间：${m.start_date} ~ ${m.end_date}（${m.trading_days}个交易日）｜ 当前持仓：<b>${fmtCurrentHolding(data)}</b></div>
       <div class="metrics-grid">
         <div class="metric"><div class="metric-label">总收益</div><div class="metric-value ${retClass}">${m.total_return>0?'+':''}${m.total_return}%</div></div>
         <div class="metric"><div class="metric-label">年化收益</div><div class="metric-value ${retClass}">${m.annual_return>0?'+':''}${m.annual_return}%</div></div>
@@ -527,29 +540,48 @@ function showDetail(stype) {
         <div class="metric"><div class="metric-label">Calmar</div><div class="metric-value">${m.calmar}</div></div>
         <div class="metric"><div class="metric-label">胜率</div><div class="metric-value">${m.win_rate}%</div></div>
         <div class="metric"><div class="metric-label">年化波动</div><div class="metric-value">${m.volatility}%</div></div>
-        <div class="metric"><div class="metric-label">交易日</div><div class="metric-value">${m.trading_days}</div></div>
+        <div class="metric"><div class="metric-label">索提诺</div><div class="metric-value">${m.sortino != null ? m.sortino : '--'}</div></div>
       </div>
     </div>
     <div class="card">
       <div class="card-title">净值曲线</div>
-      <div class="card-subtitle">${m.start_date} ~ ${m.end_date}</div>
-      <div id="detailNavChart" class="chart-container large"></div>
+      <div class="card-subtitle">${m.name} · ${m.start_date} ~ ${m.end_date}</div>
+      <div id="dn-${stype}" class="chart-container large"></div>
     </div>
     <div class="card">
       <div class="card-title">vs 基准对比</div>
-      <div id="detailCompareChart" class="chart-container"></div>
+      <div id="dc-${stype}" class="chart-container"></div>
     </div>
     <div class="card">
       <div class="card-title">回撤曲线</div>
-      <div id="detailDDChart" class="chart-container"></div>
+      <div id="dd-${stype}" class="chart-container"></div>
     </div>
-  `;
+    `;
+  }
+  body.innerHTML = html;
+  // 图表渲染：仅当详情section可见时执行（隐藏容器中echarts宽高为0）
+  const sec = document.getElementById('section-detail');
+  if (sec && sec.classList.contains('active')) {
+    setTimeout(() => {
+      for (const s of SUMMARY.strategies) {
+        if (STRATEGY_DATA[s.strategy_type]) renderDetailCharts(s.strategy_type);
+      }
+    }, 60);
+  }
+}
 
+function showDetail(stype) {
+  // 跳转到详情section并定位到对应策略卡片
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('[data-section="detail"]').classList.add('active');
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  const sec = document.getElementById('section-detail');
+  sec.classList.add('active');
+  renderAllDetails();
   setTimeout(() => {
-    renderDetailCharts(stype);
-  }, 100);
-
-  renderDetailSelector();
+    const el = document.getElementById(`detail-${stype}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 120);
 }
 
 function renderDetailCharts(stype) {
@@ -558,8 +590,19 @@ function renderDetailCharts(stype) {
   const dates = data.nav.map(d => d.date);
   const navs = data.nav.map(d => d.nav);
 
+  const navEl = document.getElementById(`dn-${stype}`);
+  const cmpEl = document.getElementById(`dc-${stype}`);
+  const ddEl = document.getElementById(`dd-${stype}`);
+  if (!navEl || !cmpEl || !ddEl) return;
+
+  // 清理旧实例（重复渲染时防堆积）
+  [navEl, cmpEl, ddEl].forEach(el => {
+    const old = echarts.getInstanceByDom(el);
+    if (old) old.dispose();
+  });
+
   // 净值曲线
-  const navChart = echarts.init(document.getElementById('detailNavChart'));
+  const navChart = echarts.init(navEl);
   navChart.setOption({
     tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>净值: ${p[0].value.toFixed(4)}` },
     grid: { top: 20, bottom: 30, left: 60, right: 20 },
@@ -591,7 +634,7 @@ function renderDetailCharts(stype) {
     }
   }
 
-  const cmpChart = echarts.init(document.getElementById('detailCompareChart'));
+  const cmpChart = echarts.init(cmpEl);
   cmpChart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { data: compareData.map(d => d.name), textStyle: { color: '#8b949e' }, top: 0 },
@@ -610,7 +653,7 @@ function renderDetailCharts(stype) {
     peak = Math.max(peak, v);
     return ((v - peak) / peak * 100);
   });
-  const ddChart = echarts.init(document.getElementById('detailDDChart'));
+  const ddChart = echarts.init(ddEl);
   ddChart.setOption({
     tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>回撤: ${p[0].value.toFixed(2)}%` },
     grid: { top: 20, bottom: 30, left: 60, right: 20 },
@@ -766,7 +809,26 @@ function renderHoldingsTable(stype) {
     return;
   }
   const holdings = data.holdings;
-  const etfNames = Object.keys(STRATEGY_META).length > 0 && holdings[0]
+
+  // 小白兔：调仓事件流格式 {date, action, etf, score, from?}
+  if (holdings[0] && holdings[0].action) {
+    let html = '<table><thead><tr><th>调仓日期</th><th>动作</th><th>标的</th><th>动量得分</th></tr></thead><tbody>';
+    for (const h of holdings) {  // JSON保存时已倒序（最新在前）
+      const isBuy = h.action === 'buy';
+      html += `<tr>
+        <td>${h.date}</td>
+        <td><span class="badge" style="background:${isBuy ? 'rgba(239,68,68,0.18);color:#ef4444' : 'rgba(88,166,255,0.18);color:#58a6ff'};padding:2px 10px;">${isBuy ? '建仓' : '切换'}</span></td>
+        <td>${h.from ? `${h.from} → <b>${h.etf}</b>` : `<b>${h.etf}</b>`}</td>
+        <td>${h.score != null ? h.score : '--'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('holdingsTable').innerHTML = html;
+    return;
+  }
+
+  // 其他策略：权重矩阵格式 {date, 'ETF名': 权重}
+  const etfNames = holdings[0]
     ? Object.keys(holdings[0]).filter(k => k !== 'date') : ['价值ETF', '成长ETF'];
 
   let html = '<table><thead><tr><th>调仓日期</th>';
@@ -800,7 +862,7 @@ function setupNav() {
 
       if (section === 'compare') renderCompare();
       if (section === 'holdings') renderHoldings();
-      if (section === 'detail') renderDetailSelector();
+      if (section === 'detail') renderAllDetails();
 
       // 重绘图表
       setTimeout(() => {
@@ -821,14 +883,14 @@ async function init() {
     return;
   }
   renderOverview();
-  renderDetailSelector();
+  renderAllDetails();
   setupNav();
 }
 
 window.addEventListener('resize', () => {
   for (const chart of Object.values(charts)) chart && chart.resize();
-  // ECharts实例自适应
-  document.querySelectorAll('[id^="mini-chart-"], #compareChart, #drawdownChart').forEach(el => {
+  // ECharts实例自适应（含平铺详情图表）
+  document.querySelectorAll('[id^="mini-chart-"], [id^="dn-"], [id^="dc-"], [id^="dd-"], #compareChart, #drawdownChart').forEach(el => {
     const inst = echarts.getInstanceByDom(el);
     if (inst) inst.resize();
   });

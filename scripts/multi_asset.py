@@ -76,7 +76,7 @@ STRATEGY_DIR = os.path.join(OUTPUT_DIR, 'strategies')
 def fetch_etf_data(code, market, start_date='2020-01-01', end_date='2026-12-31', retry=3):
     """从腾讯API获取ETF前复权日K线"""
     symbol = f'{market}{code}'
-    url = f'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,qfq'
+    url = f'https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,qfq'
 
     for i in range(retry):
         try:

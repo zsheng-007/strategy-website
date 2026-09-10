@@ -82,12 +82,12 @@ ETF_POOL = {
 # 策略参数（按截图）
 MOMENTUM_WINDOW = 25       # 动量周期25天
 TOP_K = 1                  # 持有1只
-REBALANCE_PERIOD = 5       # 每周(5交易日)调仓一次
-HOLD_MIN_DAYS = 3          # 最短持有3天，避免频繁切换
+SWITCH_BUFFER = 0.15       # 换仓缓冲带：新标的得分需超过现持仓15%才切换
 STOP_LOSS = -0.05          # 固定止损-5%（组合回撤）
 DAILY_CRASH = -0.03        # 单日跌幅阈值-3%
 PREMIUM_MAX = 0.20         # 溢价率<20%
 RECENT_DROP_MAX = 0.05     # 近3日跌幅过滤阈值
+TREND_BREAK = -0.10        # 持仓标的近3日累计跌幅超10%视为趋势破坏
 TRANSACTION_COST = 0.0005  # 单边万分之五
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -195,12 +195,15 @@ def calc_momentum_factor(prices_df, window=MOMENTUM_WINDOW):
 # ============================================================
 def backtest_no_industry(etf_data):
     """
-    无行业ETF轮动策略
-    - 基于动量因子+线性回归斜率
-    - 动量周期25个交易日
-    - 持有1只（满仓）
-    - 自动加仓：满足条件时切换
-    - 严格风控：固定止损-5%、单日-3%、溢价<20%等
+    无行业ETF轮动策略（信号触发式切换，复刻小白兔）
+    - 动量因子：25日加权回归斜率×R²
+    - 每日检查信号：
+      · 空仓时 → 买入当日过滤后得分最高的ETF
+      · 持有时 → 仅当新第一名得分超过现持仓(1+10%缓冲带)才切换
+      · 现持仓跌出过滤池（动量转负/近3日跌幅/量能异常）→ 清仓
+      · 持仓标的近3日累计跌幅>10%（趋势破坏）→ 清仓
+    - 收益口径：昨日信号今日建仓，今日持仓吃今日收盘对昨日收盘涨幅
+    - holdings_log 记录每次真实调仓事件（换仓日+新标的）
     """
     print("\n运行无行业ETF轮动策略...")
 
@@ -228,49 +231,87 @@ def backtest_no_industry(etf_data):
     daily_returns = prices.pct_change().fillna(0)
 
     positions = pd.DataFrame(0.0, index=prices.index, columns=etf_codes)
-    holdings_log = []
-
-    nav_tracker = 1.0
-    peak_tracker = 1.0
+    holdings_log = []          # 真实调仓事件记录
     current_holding = None
-    hold_days = 0
+    last_cleared = None        # 最近被清仓的标的（抑制噪声重建仓）
+    cooldown = 0               # 清仓后冷却天数
+
+    def get_valid_codes(i):
+        """返回 i 日的有效候选（含得分），应用全部过滤"""
+        sy = factor_scores.iloc[i]
+        valid = {}
+        for c in etf_codes:
+            s = sy[c]
+            if pd.isna(s) or s <= 0:          # 动量必须为正
+                continue
+            if (i) in recent_drop.index and c in recent_drop.columns:
+                if not pd.isna(recent_drop.iloc[i][c]) and recent_drop.iloc[i][c] < -RECENT_DROP_MAX:
+                    continue                    # 近3日跌幅>5%
+            if (i) in vol_anomaly.index and c in vol_anomaly.columns:
+                if vol_anomaly.iloc[i][c]:
+                    continue                    # 成交量异常放大
+            valid[c] = s
+        return valid
 
     for i in range(1, len(prices)):
         today = prices.index[i]
-        daily_ret = 0.0
 
-        # 连续3日跌幅触发清仓（趋势破坏）
-        if i >= 3 and current_holding is not None:
-            ret3 = (prices.iloc[i][current_holding] / prices.iloc[i-3][current_holding]) - 1
-            if ret3 < -RECENT_DROP_MAX * 2:  # 近3日累计跌幅 > 10%
+        if i < MOMENTUM_WINDOW + 1:
+            positions.iloc[i] = 0.0
+            continue
+
+        # ── 用昨日收盘后的信号，决定今日开盘持仓 ──
+        sig = i - 1  # 信号日
+        valid = get_valid_codes(sig)
+
+        # 1. 趋势破坏检查：持仓标的近3日累计跌幅>10% → 清仓
+        if current_holding is not None and sig >= 3:
+            ret3 = (prices.iloc[sig][current_holding] / prices.iloc[sig-3][current_holding]) - 1
+            if ret3 < TREND_BREAK:
+                last_cleared = current_holding
                 current_holding = None
-                hold_days = 0
+                cooldown = 3
 
-        need_rebalance = (hold_days == 0) or (hold_days >= REBALANCE_PERIOD)
-        if need_rebalance and i >= MOMENTUM_WINDOW + 1:
-            sy = factor_scores.iloc[i-1]
-            valid_codes = []
-            for c in etf_codes:
-                if pd.isna(sy[c]) or sy[c] <= 0:
-                    continue
-                if c in recent_drop.columns and (i-1) in recent_drop.index:
-                    if recent_drop.iloc[i-1][c] < -RECENT_DROP_MAX:
-                        continue
-                if c in vol_anomaly.columns and (i-1) in vol_anomaly.index:
-                    if vol_anomaly.iloc[i-1][c]:
-                        continue
-                valid_codes.append(c)
+        # 2. 现持仓跌出过滤池（动量转负/近3日大跌/量能异常）→ 清仓（带冷却）
+        if current_holding is not None and current_holding not in valid:
+            last_cleared = current_holding
+            current_holding = None
+            cooldown = 3
 
-            if len(valid_codes) >= 1:
-                best = sy[valid_codes].idxmax()
+        # 3. 选股/换仓决策（带冷却机制，避免同一标的反复建仓产生噪声）
+        if cooldown > 0:
+            cooldown -= 1
+        elif valid:
+            best = max(valid, key=valid.get)
+            if current_holding is None:
+                # 空仓 → 建仓（若与最近一次清仓标的相同，视为延续，不重复记录）
                 current_holding = best
-                hold_days = 1
-            else:
+                if best != last_cleared:
+                    holdings_log.append({
+                        'date': today.strftime('%Y-%m-%d'),
+                        'action': 'buy',
+                        'etf': ETF_POOL[best]['name'],
+                        'score': round(float(valid[best]), 2),
+                    })
+                last_cleared = None
+            elif best != current_holding:
+                # 换仓缓冲带：新标的得分需显著超过现持仓才切换
+                cur_score = valid.get(current_holding, 0)
+                if valid[best] > cur_score * (1 + SWITCH_BUFFER):
+                    holdings_log.append({
+                        'date': today.strftime('%Y-%m-%d'),
+                        'action': 'switch',
+                        'etf': ETF_POOL[best]['name'],
+                        'from': ETF_POOL[current_holding]['name'],
+                        'score': round(float(valid[best]), 2),
+                    })
+                    current_holding = best
+        else:
+            # 全池无合格标的 → 空仓，并记录被清仓标的以抑制噪声重建仓
+            if current_holding is not None:
+                last_cleared = current_holding
                 current_holding = None
-                hold_days = 0
-        elif current_holding is not None:
-            hold_days += 1
-        # 注：已移除频繁触发的回撤/单日跌幅止损（满仓单标的易误触）
+                cooldown = 3
 
         # 设置今日持仓
         if current_holding is not None:
@@ -279,24 +320,11 @@ def backtest_no_industry(etf_data):
         else:
             positions.iloc[i] = 0.0
 
-        # T+1 收益计算
-        daily_ret = (positions.iloc[i] * daily_returns.iloc[i]).sum()
-        nav_tracker *= (1 + daily_ret)
-        peak_tracker = max(peak_tracker, nav_tracker)
+    # 统一收益口径：今日持仓(positions[i])吃今日涨幅(daily_returns[i])
+    # 即：昨日收盘出信号 → 今日开盘建仓 → 今日收盘结算
+    strategy_returns = (positions * daily_returns).sum(axis=1).fillna(0)
 
-        # 记录调仓（每5天采样）
-        if i % 5 == 0 or i == len(prices) - 1:
-            pos = positions.iloc[i]
-            holding = {'date': today.strftime('%Y-%m-%d')}
-            for c in etf_codes:
-                if pos[c] > 0.01:
-                    holding[ETF_POOL[c]['name']] = round(float(pos[c]), 4)
-            holdings_log.append(holding)
-
-    # 计算策略收益
-    strategy_returns = (positions.shift(1) * daily_returns).sum(axis=1).fillna(0)
-
-    # 交易成本
+    # 交易成本（换仓时双边）
     pos_change = positions.diff().abs().sum(axis=1)
     strategy_returns -= pos_change * TRANSACTION_COST
 
@@ -368,19 +396,30 @@ def calc_metrics(returns, name=''):
 def save_strategy_json(returns, positions, holdings_log, metrics):
     nav = calc_nav(returns)
     nav_norm = nav / nav.iloc[0]
-    current_holding = holdings_log[-1] if holdings_log else {}
+
+    # 当前持仓：取最后一行positions（最新真实持仓）
+    last_pos = positions.iloc[-1]
+    current = {}
+    for c in positions.columns:
+        if last_pos[c] > 0.01:
+            current = {
+                'date': positions.index[-1].strftime('%Y-%m-%d'),
+                'etf': ETF_POOL[c]['name'],
+                'weight': round(float(last_pos[c]), 4),
+            }
 
     data = {
         'strategy_name': '无行业ETF轮动(小白兔)',
         'strategy_type': 'no_industry',
         'metrics': metrics,
-        'current_holding': current_holding,
+        'current_holding': current,
         'etf_pool': {k: v['name'] for k, v in ETF_POOL.items()},
         'nav': [
             {'date': d.strftime('%Y-%m-%d'), 'nav': round(float(v), 4)}
             for d, v in nav_norm.items()
         ],
-        'holdings': holdings_log[-52:],
+        # holdings 为真实调仓事件流（买入/切换），倒序取最近52条再正序展示
+        'holdings': list(reversed(holdings_log[-52:])),
     }
     path = os.path.join(STRATEGY_DIR, 'no_industry.json')
     with open(path, 'w', encoding='utf-8') as f:
@@ -411,7 +450,7 @@ def main():
     etf_codes = prices.columns.tolist()
     pos_change = positions[etf_codes].diff().abs().sum(axis=1) / 2
     annual_turnover = pos_change.sum() / (len(returns) / 252)
-    trade_count = (positions.diff().abs().sum(axis=1) > 0.01).sum()
+    trade_count = len(holdings_log)
 
     print("\n" + "=" * 60)
     print("无行业ETF轮动策略回测结果")
@@ -425,12 +464,20 @@ def main():
     print(f"  年换手: {annual_turnover:.1f}倍 交易次数: {trade_count}")
     print(f"  区间: {metrics['start_date']} ~ {metrics['end_date']} ({metrics['trading_days']}交易日)")
 
+    # 当前持仓
+    last_pos = positions.iloc[-1]
+    for c in positions.columns:
+        if last_pos[c] > 0.01:
+            print(f"\n  当前持仓: {ETF_POOL[c]['name']} {last_pos[c]*100:.0f}%")
+
+    # 最近8次调仓
     if holdings_log:
-        latest = holdings_log[-1]
-        print(f"\n  最新持仓 ({latest['date']}):")
-        for k, v in latest.items():
-            if k != 'date' and v > 0:
-                print(f"    {k}: {v*100:.1f}%")
+        print(f"\n  最近8次调仓事件:")
+        for h in holdings_log[-8:]:
+            if h['action'] == 'buy':
+                print(f"    {h['date']} 买入 {h['etf']} (得分{h['score']})")
+            else:
+                print(f"    {h['date']} {h.get('from','')} → {h['etf']} (得分{h['score']})")
 
     return metrics
 
