@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-08-18 16:56:09",
+  "update_time": "2026-09-10 17:28:33",
   "etfs": {
     "512040": {
       "name": "价值ETF",
@@ -22,61 +22,78 @@
       "market": "sh",
       "file": "a500"
     },
-    "000905": {
-      "name": "中证500",
-      "market": "sh",
-      "file": "csi500"
+    "us.INX": {
+      "name": "标普500",
+      "market": "us",
+      "file": "sp500"
     }
   },
-  "benchmark_note": "偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，以中证500指数(000905)替代",
+  "benchmark_note": "偏股混合基金指数885001为Wind独家编制，免费数据源无法获取，改用标普500指数(us.INX)作为海外基准",
   "strategies": [
     {
       "name": "动量轮动",
-      "total_return": 26.84,
-      "annual_return": 29.04,
+      "total_return": 32.25,
+      "annual_return": 32.25,
       "max_drawdown": -30.6,
-      "sharpe": 0.835,
-      "calmar": 0.949,
-      "win_rate": 55.74,
-      "volatility": 35.8,
+      "sharpe": 0.905,
+      "calmar": 1.054,
+      "win_rate": 55.95,
+      "volatility": 35.74,
       "start_date": "2025-08-28",
-      "end_date": "2026-08-18",
-      "trading_days": 235,
+      "end_date": "2026-09-10",
+      "trading_days": 252,
       "strategy_type": "momentum"
     },
     {
       "name": "等权再平衡",
-      "total_return": 27.72,
-      "annual_return": 30.0,
+      "total_return": 24.68,
+      "annual_return": 24.68,
       "max_drawdown": -19.21,
-      "sharpe": 1.072,
-      "calmar": 1.562,
-      "win_rate": 52.77,
-      "volatility": 25.71,
+      "sharpe": 0.911,
+      "calmar": 1.285,
+      "win_rate": 53.17,
+      "volatility": 25.61,
       "start_date": "2025-08-28",
-      "end_date": "2026-08-18",
-      "trading_days": 235,
+      "end_date": "2026-09-10",
+      "trading_days": 252,
       "strategy_type": "equal_weight"
     },
     {
       "name": "相对强弱动态配比",
-      "total_return": 32.48,
-      "annual_return": 35.21,
+      "total_return": 32.66,
+      "annual_return": 32.66,
       "max_drawdown": -25.11,
-      "sharpe": 1.079,
-      "calmar": 1.402,
-      "win_rate": 56.6,
-      "volatility": 30.39,
+      "sharpe": 1.023,
+      "calmar": 1.301,
+      "win_rate": 56.75,
+      "volatility": 30.11,
       "start_date": "2025-08-28",
-      "end_date": "2026-08-18",
-      "trading_days": 235,
+      "end_date": "2026-09-10",
+      "trading_days": 252,
       "strategy_type": "relative_strength"
+    },
+    {
+      "name": "无行业ETF轮动(小白兔)",
+      "total_return": 80.99,
+      "annual_return": 48.67,
+      "max_drawdraw": 0,
+      "max_drawdown": -47.99,
+      "sharpe": 0.941,
+      "sortino": 1.096,
+      "calmar": 1.014,
+      "win_rate": 48.01,
+      "volatility": 57.65,
+      "pl_ratio": 1.071,
+      "start_date": "2025-02-27",
+      "end_date": "2026-09-10",
+      "trading_days": 377,
+      "strategy_type": "no_industry"
     }
   ],
   "data_range": {
     "start": "2025-08-28",
-    "end": "2026-08-18",
-    "trading_days": 235
+    "end": "2026-09-10",
+    "trading_days": 252
   },
   "rebalance_freq": "周频（每周五）",
   "momentum_lookback": "4周",
