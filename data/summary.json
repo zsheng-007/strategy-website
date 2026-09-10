@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-09-10 17:28:33",
+  "update_time": "2026-09-10 09:32:35",
   "etfs": {
     "512040": {
       "name": "价值ETF",
@@ -73,6 +73,20 @@
       "strategy_type": "relative_strength"
     },
     {
+      "name": "行业轮动(高频三因子)",
+      "total_return": 84.32,
+      "annual_return": 27.22,
+      "max_drawdown": -21.25,
+      "sharpe": 0.979,
+      "calmar": 1.281,
+      "win_rate": 49.06,
+      "volatility": 25.97,
+      "start_date": "2024-01-19",
+      "end_date": "2026-09-10",
+      "trading_days": 640,
+      "strategy_type": "industry_rotation_v2"
+    },
+    {
       "name": "无行业ETF轮动(小白兔)",
       "total_return": 80.99,
       "annual_return": 48.67,
@@ -88,6 +102,20 @@
       "end_date": "2026-09-10",
       "trading_days": 377,
       "strategy_type": "no_industry"
+    },
+    {
+      "name": "多元配置(风险平价)",
+      "total_return": 1.72,
+      "annual_return": 2.14,
+      "max_drawdown": -11.13,
+      "sharpe": 0.083,
+      "calmar": 0.192,
+      "win_rate": 35.96,
+      "volatility": 14.98,
+      "start_date": "2025-11-13",
+      "end_date": "2026-09-10",
+      "trading_days": 203,
+      "strategy_type": "multi_asset"
     }
   ],
   "data_range": {
