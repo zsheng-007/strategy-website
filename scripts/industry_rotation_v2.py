@@ -199,6 +199,23 @@ def backtest_industry_rotation_v2(etf_data):
         for c in positions.columns:
             positions.loc[mask, c] = current_pos.get(c, 0.0)
 
+    # 补最后一档持仓记录：循环只处理到 rebal_dates[-2]+1 区间，
+    # 最后一天(通常为最新交易日)仅作为 next_date 出现，会漏记一次调仓状态，
+    # 导致前端持仓表看起来"没更新"。此处补记，保持与 nav 末端对齐。
+    if rebal_dates:
+        last_date = rebal_dates[-1]
+        last_holding = {'date': last_date.strftime('%Y-%m-%d')}
+        for c, v in current_pos.items():
+            if c == '现金':
+                last_holding['现金'] = round(v, 4)
+            else:
+                last_holding[INDUSTRY_ETF_POOL[c]['name']] = round(v, 4)
+        if not holdings_log or holdings_log[-1]['date'] != last_holding['date']:
+            holdings_log.append(last_holding)
+        mask = (positions.index > last_date)
+        for c in positions.columns:
+            positions.loc[mask, c] = current_pos.get(c, 0.0)
+
     # 计算策略收益
     strategy_returns = pd.Series(0.0, index=prices.index)
     for col in etf_codes:

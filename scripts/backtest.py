@@ -375,7 +375,9 @@ def strategy_to_json(nav, name, stype, metrics, positions=None, etf_names=None):
     # 持仓记录（最近52周）
     if positions is not None:
         holdings = []
-        rebal_dates = [d for d in positions.index if d.weekday() == REBALANCE_WEEKDAY]
+        # 必须与策略内部使用同一套调仓日（get_rebalance_dates 含最后交易日），
+        # 否则最后一天若为非周五，调仓记录会缺失，造成持仓表"没更新"的假象
+        rebal_dates = get_rebalance_dates(positions)
         for d in rebal_dates[-52:]:
             h = {'date': d.strftime('%Y-%m-%d')}
             for c in positions.columns:
@@ -393,7 +395,6 @@ def strategy_to_json(nav, name, stype, metrics, positions=None, etf_names=None):
                 cur[label] = round(w, 4)
         data['current_holding'] = cur
 
-    return data
     return data
 
 
