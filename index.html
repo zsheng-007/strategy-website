@@ -136,6 +136,14 @@ body {
   margin: 12px 0;
 }
 .chart-container.large { height: 500px; }
+.chart-container.combo { height: 560px; }
+
+/* 策略详细说明 */
+.strategy-desc {
+  font-size: 13px; line-height: 1.75; color: var(--text-secondary);
+}
+.strategy-desc p { margin: 8px 0; }
+.strategy-desc b { color: var(--text-primary); }
 
 /* Badge */
 .badge {
@@ -213,6 +221,7 @@ tbody tr:hover { background: var(--bg-hover); }
   .strategy-grid { grid-template-columns: 1fr; }
   .header-info { display: none; }
   .chart-container { height: 300px; }
+  .chart-container.combo { height: 440px; }
 }
 
 /* Note */
@@ -344,12 +353,43 @@ let BENCHMARK_DATA = {};
 let charts = {};
 
 const STRATEGY_META = {
-  'momentum': { name: '动量轮动', desc: '过去4周动量最强的ETF满仓持有', color: '#ef4444' },
-  'equal_weight': { name: '等权再平衡', desc: '50/50等权配置，每周再平衡', color: '#58a6ff' },
-  'relative_strength': { name: '相对强弱动态配比', desc: '按动量强弱动态分配权重(20%-80%)', color: '#d4af37' },
-  'industry_rotation_v2': { name: '行业轮动(高频三因子)', desc: '三因子周频轮动，前2名集中满仓，12只行业ETF', color: '#f97316' },
-  'no_industry': { name: '无行业ETF轮动(小白兔)', desc: '动量因子+趋势破坏风控，28只ETF满仓单标的，每周调仓', color: '#8b5cf6' },
-  'multi_asset': { name: '多元配置(风险平价)', desc: '风险平价模型，全球ETF+商品+债券月频再平衡', color: '#10b981' },
+  'momentum': {
+    name: '动量轮动', desc: '过去4周动量最强的ETF满仓持有', color: '#ef4444',
+    full: `<p><b>策略原理：</b>经典截面动量策略。每周计算候选池内所有ETF过去4周（20个交易日）的涨幅，始终满仓持有动量最强的1只ETF，每周调仓时切换到新的榜首。</p>
+<p><b>调仓规则：</b>周频调仓。若榜首未变则持仓不动；榜首易主则全仓切换。换手主要来自动量排名的变化。</p>
+<p><b>适用场景：</b>单边趋势行情（如2019-2021年结构性行情）表现最佳；震荡市中易被反复打脸，产生较高磨损成本。</p>
+<p><b>风险特征：</b>集中持仓单一标的，波动与回撤完全取决于该标的走势，无对冲机制。</p>` },
+  'equal_weight': {
+    name: '等权再平衡', desc: '50/50等权配置，每周再平衡', color: '#58a6ff',
+    full: `<p><b>策略原理：</b>最简单稳健的配置型基线。将资金对半分给两类资产（如价值/成长ETF），每周五收盘后检查权重偏离，超过阈值则再平衡回50/50。</p>
+<p><b>调仓规则：</b>周频再平衡。本质是高抛低吸——涨多的卖出一部分，跌多的买入一部分，持续赚波动率的钱。</p>
+<p><b>适用场景：</b>适合作为所有复杂策略的对照基线。长期收益平庸但极其稳健，几乎不会出现深度回撤。</p>
+<p><b>风险特征：</b>回撤浅、修复快，但牛市里跑输集中持仓策略明显。</p>` },
+  'relative_strength': {
+    name: '相对强弱动态配比', desc: '按动量强弱动态分配权重(20%-80%)', color: '#d4af37',
+    full: `<p><b>策略原理：</b>介于等权与满仓动量之间的折中方案。计算两类ETF的动量差，动量差越大，强势方的配置权重越高（20%~80%连续调节），动量差收敛时权重回归均衡。</p>
+<p><b>调仓规则：</b>周频调仓。权重随相对强弱连续变化，无硬性切换，避免了动量策略"全进全出"的跳变磨损。</p>
+<p><b>适用场景：</b>适合风格轮动明显但节奏难把握的行情，攻守兼备。</p>
+<p><b>风险特征：</b>回撤介于等权与动量满仓之间，胜率较高但弹性不足。</p>` },
+  'industry_rotation_v2': {
+    name: '行业轮动(高频三因子)', desc: '三因子周频轮动，前2名集中满仓，12只行业ETF', color: '#f97316',
+    full: `<p><b>策略原理：</b>A股行业轮动策略升级版。在12只核心行业ETF（消费、医药、科技、金融、军工等）池内，综合三个因子打分：①4周动量 ②量价背离度 ③波动率调整收益，每周选出综合得分前2的行业。</p>
+<p><b>调仓规则：</b>周频轮动，前2名按70%/30%配比集中持仓，带换仓缓冲带防止排名微变导致的频繁切换。</p>
+<p><b>适用场景：</b>A股结构性行情（板块快速轮动期）收益弹性大；普涨普跌市里因子区分度下降。</p>
+<p><b>风险特征：</b>行业集中度高，单一行业崩塌时回撤较深，依赖缓冲带与止损纪律控制磨损。</p>` },
+  'no_industry': {
+    name: '无行业ETF轮动(小白兔)', desc: '25日动量+五层风控，28只跨资产ETF，信号触发调仓', color: '#8b5cf6',
+    full: `<p><b>策略原理：</b>复刻微信小程序"量化小白兔"的无行业轮动策略。在28只跨资产ETF池（商品/国际/港股/A股指数/债券）中，用<b>25日加权线性回归斜率×R²</b>计算趋势稳定性得分，近端权重更高，捕捉"涨得稳"的标的而非"涨得猛"的标的。</p>
+<p><b>持仓结构：</b>Top2分散——主仓70%+副仓30%，信号触发式调仓（非固定周期）：新榜首得分超过现持仓15%（换仓缓冲带）才切换，否则持仓不动，大幅降低磨损。</p>
+<p><b>五层风控：</b>①持仓标的单日跌幅&lt;-6%即时清仓（LOF溢价崩塌逃命线）；②主仓近3日累计跌幅&gt;10%判定趋势破坏清仓；③主仓跌出过滤池（动量转负/量能异常/近3日跌幅&gt;5%）清仓；④组合回撤&gt;10%整体降半仓，修复后自动恢复；⑤副仓独立止损。</p>
+<p><b>收益口径：</b>T+1无前视偏差——昨日收盘出信号，今日开盘建仓，今日收盘结算。</p>
+<p><b>风险特征：</b>高波动LOF（南方原油/白银）既是收益引擎也是回撤来源，逃命线将单日-10%脉冲的损失截断在一棒之内。</p>` },
+  'multi_asset': {
+    name: '多元配置(风险平价)', desc: '风险平价模型，全球ETF+商品+债券月频再平衡', color: '#10b981',
+    full: `<p><b>策略原理：</b>机构级配置框架。资产池覆盖全球股票（美股/港股/A股）、商品（黄金/原油）、债券，按<b>风险平价</b>分配权重——波动大的资产占比小，波动小的占比大，使每类资产对组合的风险贡献相等。</p>
+<p><b>调仓规则：</b>月频再平衡。用20日滚动波动率倒数计算目标权重，偏离超阈值时调回，天然自带止损与再平衡纪律。</p>
+<p><b>适用场景：</b>全天候策略，任何单一资产崩塌对组合冲击有限，适合作为压舱石配置。</p>
+<p><b>风险特征：</b>回撤极浅（通常&lt;10%），但牛市弹性不足，长期收益中枢低于轮动类策略。</p>` },
 };
 
 const BENCHMARK_META = {
@@ -544,17 +584,13 @@ function renderAllDetails() {
       </div>
     </div>
     <div class="card">
-      <div class="card-title">净值曲线</div>
-      <div class="card-subtitle">${m.name} · ${m.start_date} ~ ${m.end_date}</div>
-      <div id="dn-${stype}" class="chart-container large"></div>
+      <div class="card-title">净值 / 基准对比 / 回撤（三图合一）</div>
+      <div class="card-subtitle">${m.name} · 上图：策略净值 vs 中证A500 / 标普500（归一化）｜ 下图：回撤区间｜ 支持底部缩放拖拽</div>
+      <div id="cb-${stype}" class="chart-container combo"></div>
     </div>
     <div class="card">
-      <div class="card-title">vs 基准对比</div>
-      <div id="dc-${stype}" class="chart-container"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">回撤曲线</div>
-      <div id="dd-${stype}" class="chart-container"></div>
+      <div class="card-title">策略说明</div>
+      <div class="strategy-desc">${meta.full || meta.desc || ''}</div>
     </div>
     `;
   }
@@ -590,80 +626,70 @@ function renderDetailCharts(stype) {
   const dates = data.nav.map(d => d.date);
   const navs = data.nav.map(d => d.nav);
 
-  const navEl = document.getElementById(`dn-${stype}`);
-  const cmpEl = document.getElementById(`dc-${stype}`);
-  const ddEl = document.getElementById(`dd-${stype}`);
-  if (!navEl || !cmpEl || !ddEl) return;
+  const el = document.getElementById(`cb-${stype}`);
+  if (!el) return;
 
   // 清理旧实例（重复渲染时防堆积）
-  [navEl, cmpEl, ddEl].forEach(el => {
-    const old = echarts.getInstanceByDom(el);
-    if (old) old.dispose();
-  });
+  const old = echarts.getInstanceByDom(el);
+  if (old) old.dispose();
 
-  // 净值曲线
-  const navChart = echarts.init(navEl);
-  navChart.setOption({
-    tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>净值: ${p[0].value.toFixed(4)}` },
-    grid: { top: 20, bottom: 30, left: 60, right: 20 },
-    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: '#8b949e', formatter: v => v.toFixed(2) } },
-    series: [{
-      name: meta.name, type: 'line', data: navs, smooth: true, symbol: 'none',
-      lineStyle: { color: meta.color, width: 2 },
-      areaStyle: { color: meta.color, opacity: 0.08 },
-    }],
-  });
-
-  // 对比基准
-  const compareData = [{ name: meta.name, data: navs, color: meta.color }];
+  // 基准归一化（与策略同起点）
+  const series = [{ name: meta.name, data: navs, color: meta.color, width: 2.4 }];
   for (const [key, bm] of Object.entries(BENCHMARK_DATA)) {
     if (!bm) continue;
     const bmMeta = BENCHMARK_META[key];
-    // 截取相同时间段
     const startIdx = bm.nav.findIndex(d => d.date >= dates[0]);
     const endIdx = bm.nav.findIndex(d => d.date >= dates[dates.length-1]);
     const bmNavs = bm.nav.slice(startIdx >= 0 ? startIdx : 0, endIdx >= 0 ? endIdx + 1 : bm.nav.length);
     if (bmNavs.length > 0) {
       const bmFirst = bmNavs[0].nav;
-      compareData.push({
-        name: bmMeta.name,
-        data: bmNavs.map(d => d.nav / bmFirst),
-        color: bmMeta.color,
-      });
+      series.push({ name: bmMeta.name, data: bmNavs.map(d => d.nav / bmFirst), color: bmMeta.color, width: 1.3 });
     }
   }
 
-  const cmpChart = echarts.init(cmpEl);
-  cmpChart.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: compareData.map(d => d.name), textStyle: { color: '#8b949e' }, top: 0 },
-    grid: { top: 30, bottom: 30, left: 60, right: 20 },
-    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: '#8b949e', formatter: v => v.toFixed(2) } },
-    series: compareData.map(d => ({
-      name: d.name, type: 'line', data: d.data, smooth: true, symbol: 'none',
-      lineStyle: { color: d.color, width: d.name === meta.name ? 2.5 : 1.2 },
-    })),
-  });
-
-  // 回撤
+  // 回撤序列
   let peak = -Infinity;
   const drawdowns = navs.map(v => {
     peak = Math.max(peak, v);
     return ((v - peak) / peak * 100);
   });
-  const ddChart = echarts.init(ddEl);
-  ddChart.setOption({
-    tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>回撤: ${p[0].value.toFixed(2)}%` },
-    grid: { top: 20, bottom: 30, left: 60, right: 20 },
-    xAxis: { type: 'category', data: dates, axisLabel: { color: '#8b949e', fontSize: 11 } },
-    yAxis: { type: 'value', axisLabel: { color: '#8b949e', formatter: '{value}%' } },
-    series: [{
-      type: 'line', data: drawdowns, symbol: 'none', smooth: true,
-      lineStyle: { color: '#ef4444', width: 1.5 },
-      areaStyle: { color: '#ef4444', opacity: 0.15 },
-    }],
+
+  const chart = echarts.init(el);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross', link: [{ xAxisIndex: 'all' }] } },
+    legend: { data: series.map(d => d.name), textStyle: { color: '#8b949e' }, top: 0 },
+    axisPointer: { link: [{ xAxisIndex: 'all' }] },
+    grid: [
+      { top: 30, bottom: '34%', left: 60, right: 20 },
+      { top: '74%', bottom: 46, left: 60, right: 20 },
+    ],
+    xAxis: [
+      { type: 'category', gridIndex: 0, data: dates, axisLabel: { show: false }, axisTick: { show: false } },
+      { type: 'category', gridIndex: 1, data: dates, axisLabel: { color: '#8b949e', fontSize: 10 } },
+    ],
+    yAxis: [
+      { type: 'value', gridIndex: 0, scale: true, axisLabel: { color: '#8b949e', formatter: v => v.toFixed(2) }, splitLine: { lineStyle: { color: 'rgba(139,148,158,0.12)' } } },
+      { type: 'value', gridIndex: 1, max: 0, axisLabel: { color: '#8b949e', formatter: '{value}%' }, splitLine: { show: false } },
+    ],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: [0, 1], start: 0, end: 100 },
+      { type: 'slider', xAxisIndex: [0, 1], bottom: 4, height: 22, borderColor: 'rgba(139,148,158,0.3)', textStyle: { color: '#8b949e', fontSize: 10 } },
+    ],
+    series: [
+      ...series.map(d => ({
+        name: d.name, type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+        data: d.data, smooth: true, symbol: 'none',
+        lineStyle: { color: d.color, width: d.width },
+        areaStyle: d.name === meta.name ? { color: d.color, opacity: 0.07 } : undefined,
+      })),
+      {
+        name: '回撤', type: 'line', xAxisIndex: 1, yAxisIndex: 1,
+        data: drawdowns, symbol: 'none', smooth: true,
+        lineStyle: { color: '#ef4444', width: 1.3 },
+        areaStyle: { color: '#ef4444', opacity: 0.18 },
+        tooltip: { valueFormatter: v => v ? v.toFixed(2) + '%' : '0%' },
+      },
+    ],
   });
 }
 
@@ -890,7 +916,7 @@ async function init() {
 window.addEventListener('resize', () => {
   for (const chart of Object.values(charts)) chart && chart.resize();
   // ECharts实例自适应（含平铺详情图表）
-  document.querySelectorAll('[id^="mini-chart-"], [id^="dn-"], [id^="dc-"], [id^="dd-"], #compareChart, #drawdownChart').forEach(el => {
+  document.querySelectorAll('[id^="mini-chart-"], [id^="cb-"], #compareChart, #drawdownChart').forEach(el => {
     const inst = echarts.getInstanceByDom(el);
     if (inst) inst.resize();
   });

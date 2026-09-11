@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-09-11 07:40:33",
+  "update_time": "2026-09-11 15:49:49",
   "etfs": {
     "512040": {
       "name": "价值ETF",
@@ -88,16 +88,16 @@
     },
     {
       "name": "无行业ETF轮动(小白兔)",
-      "total_return": 132.87,
-      "annual_return": 75.95,
+      "total_return": 133.11,
+      "annual_return": 76.07,
       "max_drawdraw": 0,
-      "max_drawdown": -49.55,
-      "sharpe": 1.299,
-      "sortino": 1.829,
-      "calmar": 1.533,
-      "win_rate": 45.36,
-      "volatility": 52.57,
-      "pl_ratio": 1.141,
+      "max_drawdown": -26.72,
+      "sharpe": 1.873,
+      "sortino": 3.041,
+      "calmar": 2.847,
+      "win_rate": 40.85,
+      "volatility": 31.85,
+      "pl_ratio": 1.506,
       "start_date": "2025-02-27",
       "end_date": "2026-09-10",
       "trading_days": 377,

@@ -71,38 +71,40 @@ def fetch_kline_tencent(code, market, start_date='2018-01-01', end_date='2026-12
         symbol = code  # 美股code本身就是完整symbol（如us.INX）
     else:
         symbol = f'{market}{code}'
-    # 腾讯API日频最多返回640条 (使用 proxy.finance.qq.com 代理绕过WAF)
-    url = f'https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,{adjust}'
+    # 腾讯API日频最多返回640条
+    # 双域名fallback：proxy域名在部分网络不可达（如GitHub海外runner），回退官方域名
+    domains = ['proxy.finance.qq.com/ifzqgtimg', 'web.ifzq.gtimg.cn/app']
 
     for i in range(retry):
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=15)
-            data = r.json()
-            inner = data.get('data', {}).get(symbol, {})
+        for domain in domains:
+            url = f'https://{domain}/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,{adjust}'
+            try:
+                r = requests.get(url, headers=HEADERS, timeout=15)
+                data = r.json()
+                inner = data.get('data', {}).get(symbol, {})
 
-            # 数据在 qfqday(前复权) 或 day(不复权) 键下
-            data_key = f'{adjust}day' if adjust else 'day'
-            klines = inner.get(data_key, []) or inner.get('day', [])
+                # 数据在 qfqday(前复权) 或 day(不复权) 键下
+                data_key = f'{adjust}day' if adjust else 'day'
+                klines = inner.get(data_key, []) or inner.get('day', [])
 
-            if not klines:
-                # 尝试不带前缀
-                for k, v in inner.items():
-                    if isinstance(v, list) and len(v) > 0 and isinstance(v[0], list):
-                        klines = v
-                        break
+                if not klines:
+                    # 尝试不带前缀
+                    for k, v in inner.items():
+                        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], list):
+                            klines = v
+                            break
 
-            if klines:
-                # 格式: [date, open, close, high, low, volume]
-                df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
-                df['date'] = pd.to_datetime(df['date'])
-                for col in ['open', 'close', 'high', 'low', 'volume']:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                df = df.sort_values('date').reset_index(drop=True)
-                return df
-            time.sleep(1)
-        except Exception as e:
-            print(f"  [{symbol}] 第{i+1}次失败: {e}")
-            time.sleep(2)
+                if klines:
+                    # 格式: [date, open, close, high, low, volume]
+                    df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
+                    df['date'] = pd.to_datetime(df['date'])
+                    for col in ['open', 'close', 'high', 'low', 'volume']:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                    df = df.sort_values('date').reset_index(drop=True)
+                    return df
+            except Exception:
+                continue
+        time.sleep(1)
     return None
 
 

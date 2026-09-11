@@ -65,29 +65,33 @@ STRATEGY_DIR = os.path.join(OUTPUT_DIR, 'strategies')
 # ============================================================
 def fetch_etf_data(code, market, start_date='2020-01-01', end_date='2026-12-31', retry=3):
     symbol = f'{market}{code}'
-    url = f'https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,qfq'
+    # 双域名fallback：proxy域名在部分网络不可达（如GitHub海外runner），回退官方域名
+    domains = ['proxy.finance.qq.com/ifzqgtimg', 'web.ifzq.gtimg.cn/app']
     for i in range(retry):
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=15)
-            data = r.json()
-            inner = data.get('data', {}).get(symbol, {})
-            klines = inner.get('qfqday', []) or inner.get('day', [])
-            if not klines:
-                for k, v in inner.items():
-                    if isinstance(v, list) and len(v) > 0 and isinstance(v[0], list):
-                        klines = v
-                        break
-            if klines:
-                df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
-                df['date'] = pd.to_datetime(df['date'])
-                for col in ['open', 'close', 'high', 'low', 'volume']:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-                df = df.sort_values('date').reset_index(drop=True)
-                return df
-            time.sleep(1)
-        except Exception as e:
-            print(f"  [{symbol}] 第{i+1}次失败: {e}")
-            time.sleep(2)
+        for domain in domains:
+            url = f'https://{domain}/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,qfq'
+            try:
+                r = requests.get(url, headers=HEADERS, timeout=15)
+                data = r.json()
+                if data.get('code') != 0:
+                    continue
+                inner = data.get('data', {}).get(symbol, {})
+                klines = inner.get('qfqday', []) or inner.get('day', [])
+                if not klines:
+                    for k, v in inner.items():
+                        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], list):
+                            klines = v
+                            break
+                if klines:
+                    df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
+                    df['date'] = pd.to_datetime(df['date'])
+                    for col in ['open', 'close', 'high', 'low', 'volume']:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                    df = df.sort_values('date').reset_index(drop=True)
+                    return df
+            except Exception:
+                continue
+        time.sleep(1)
     return None
 
 
