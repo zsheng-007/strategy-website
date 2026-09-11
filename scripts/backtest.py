@@ -351,8 +351,12 @@ def strategy_relative_strength(prices):
 # ============================================================
 # 输出JSON
 # ============================================================
-def strategy_to_json(nav, name, stype, metrics, positions=None):
-    """策略净值转JSON"""
+def strategy_to_json(nav, name, stype, metrics, positions=None, etf_names=None):
+    """策略净值转JSON
+
+    etf_names: {code: 显示名} 映射，提供时 current_holding 用可读名，
+               否则直接用code。前端 fmtCurrentHolding 兼容两种格式。
+    """
     nav_norm = nav / nav.iloc[0]
 
     data = {
@@ -379,6 +383,17 @@ def strategy_to_json(nav, name, stype, metrics, positions=None):
             holdings.append(h)
         data['holdings'] = holdings
 
+        # 当前持仓（最后一行的实际权重，供前端直接展示，无需从holdings推导）
+        last = positions.iloc[-1]
+        cur = {'date': positions.index[-1].strftime('%Y-%m-%d')}
+        for c in positions.columns:
+            w = float(last[c])
+            if w > 0.001:
+                label = (etf_names or {}).get(c, c)
+                cur[label] = round(w, 4)
+        data['current_holding'] = cur
+
+    return data
     return data
 
 
