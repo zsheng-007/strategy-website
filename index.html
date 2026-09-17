@@ -145,6 +145,69 @@ body {
 .strategy-desc p { margin: 8px 0; }
 .strategy-desc b { color: var(--text-primary); }
 
+/* 多窗口收益一览表 */
+.rm-scroll { overflow-x: auto; margin: 12px 0; -webkit-overflow-scrolling: touch; }
+.rm-table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-size: 12px; min-width: 1040px; table-layout: auto;
+}
+.rm-table th, .rm-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.rm-table thead th { background: #161b22; text-align: center; }
+/* 数据列统一右对齐，保证数字纵向对齐便于比较 */
+.rm-table tbody td { text-align: right; }
+/* 策略名列：冻结在左侧，限制宽度防止长名撑开 */
+.rm-table th.rm-th-strategy,
+.rm-table td.rm-td-strategy {
+  position: sticky; left: 0; z-index: 3;
+  width: 190px; min-width: 190px; max-width: 190px;
+  text-align: left !important;
+  background: var(--card-bg);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.rm-table th.rm-th-strategy { vertical-align: bottom; color: var(--text-muted); font-weight: 500; background: #161b22; }
+.rm-table td.rm-td-strategy {
+  color: var(--text-primary);
+  border-right: 1px solid var(--border);
+  background: #161b22;
+}
+.rm-th-group-live {
+  text-align: center; color: var(--accent); font-weight: 600;
+  font-size: 12px;
+}
+.rm-th-group-bt {
+  text-align: center; color: #d4af37; font-weight: 600; font-size: 12px;
+  background: rgba(212,175,55,0.06) !important;
+  border-left: 2px solid var(--border);
+}
+.rm-th-win, .rm-th-bt {
+  color: var(--text-muted); font-weight: 500; font-size: 11px;
+  vertical-align: bottom;
+}
+.rm-th-bt { background: rgba(212,175,55,0.06) !important; }
+.rm-sub { font-size: 10px; font-weight: 400; opacity: 0.75; }
+.rm-td-live { vertical-align: middle; }
+.rm-td-bt {
+  background: rgba(212,175,55,0.06);
+  border-left: 2px solid var(--border);
+  vertical-align: middle;
+}
+.rm-td-na {
+  color: var(--text-muted); font-size: 11px;
+  text-align: center; opacity: 0.6;
+}
+.rm-total { font-weight: 600; font-size: 13px; line-height: 1.3; }
+.rm-ann { font-size: 10px; color: var(--text-muted); line-height: 1.3; }
+.rm-days { font-size: 9px; color: var(--text-muted); opacity: 0.65; line-height: 1.3; }
+.rm-note {
+  font-size: 11px; color: var(--text-muted); line-height: 1.8;
+  border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px;
+}
+.rm-note b { color: var(--text-secondary); }
+
 /* Badge */
 .badge {
   display: inline-block;
@@ -295,6 +358,11 @@ tbody tr:hover { background: var(--bg-hover); }
   <!-- 策略对比 -->
   <div class="section" id="section-compare">
     <div class="card">
+      <div class="card-title">多窗口收益一览表</div>
+      <div class="card-subtitle">左6列＝近期实盘各窗口实际收益（括号内为实际年化）｜ 右2列＝全样本回测收益与回测年化</div>
+      <div id="returnsMatrix"></div>
+    </div>
+    <div class="card">
       <div class="card-title">策略净值对比</div>
       <div class="card-subtitle">所有策略与基准指数的归一化净值曲线</div>
       <div id="compareChart" class="chart-container large"></div>
@@ -350,6 +418,7 @@ tbody tr:hover { background: var(--bg-hover); }
 let SUMMARY = null;
 let STRATEGY_DATA = {};
 let BENCHMARK_DATA = {};
+let RETURNS_MATRIX = null;
 let charts = {};
 
 const STRATEGY_META = {
@@ -420,6 +489,7 @@ async function loadAllData() {
   for (const key of Object.keys(BENCHMARK_META)) {
     BENCHMARK_DATA[key] = await loadJSON(`data/benchmarks/${key}.json`);
   }
+  RETURNS_MATRIX = await loadJSON('data/returns_matrix.json');
 }
 
 // ============================================================
@@ -694,6 +764,86 @@ function renderDetailCharts(stype) {
 }
 
 // ============================================================
+// 渲染：多窗口收益一览表
+// ============================================================
+function fmtPct(v, showSign) {
+  if (v === null || v === undefined || isNaN(v)) return null;
+  const s = showSign && v > 0 ? '+' : '';
+  return `${s}${v.toFixed(2)}%`;
+}
+
+function pctColor(v) {
+  if (v === null || v === undefined || isNaN(v)) return 'var(--text-muted)';
+  if (v > 0) return 'var(--up)';      // A股习惯：涨红
+  if (v < 0) return 'var(--down)';    // 跌绿
+  return 'var(--text-secondary)';
+}
+
+function renderReturnsMatrix() {
+  const box = document.getElementById('returnsMatrix');
+  if (!box) return;
+  if (!RETURNS_MATRIX || !RETURNS_MATRIX.strategies) {
+    box.innerHTML = '<p style="color:var(--text-muted);">收益矩阵数据加载失败</p>';
+    return;
+  }
+
+  const wins = RETURNS_MATRIX.windows;   // [{key,name}...]
+  const strats = RETURNS_MATRIX.strategies;
+
+  // 表头
+  let head = '<tr>' +
+    '<th rowspan="2" class="rm-th-strategy">策略</th>' +
+    `<th colspan="${wins.length}" class="rm-th-group-live">近期实盘 · 实际收益<span class="rm-sub">（实际年化）</span></th>` +
+    '<th colspan="2" class="rm-th-group-bt">全样本回测</th>' +
+    '</tr><tr>';
+  for (const w of wins) head += `<th class="rm-th-win">${w.name}</th>`;
+  head += '<th class="rm-th-bt">回测收益</th><th class="rm-th-bt">回测年化</th></tr>';
+
+  // 数据行
+  let body = '';
+  for (const s of strats) {
+    const meta = STRATEGY_META[s.strategy_type] || {};
+    body += '<tr>';
+    body += `<td class="rm-td-strategy" title="${s.name}"><span style="color:${meta.color || '#8b949e'};">●</span> ${s.name}</td>`;
+
+    for (const w of wins) {
+      const wd = s.windows[w.key];
+      if (!wd || !wd.sufficient || wd.total_return === null) {
+        body += '<td class="rm-td-na">数据不足</td>';
+        continue;
+      }
+      const tot = fmtPct(wd.total_return, true);
+      const ann = fmtPct(wd.annual_return, true);
+      body += `<td class="rm-td-live">` +
+        `<div class="rm-total" style="color:${pctColor(wd.total_return)};">${tot}</div>` +
+        (ann ? `<div class="rm-ann">(${ann})</div>` : '') +
+        `<div class="rm-days">${wd.trading_days}日</div>` +
+        `</td>`;
+    }
+
+    // 全样本回测
+    const bt = s.backtest || {};
+    body += `<td class="rm-td-bt"><div class="rm-total" style="color:${pctColor(bt.total_return)};">${fmtPct(bt.total_return, true) || '--'}</div>` +
+            `<div class="rm-days">${bt.trading_days ? (bt.trading_days/252).toFixed(1)+'年' : ''}</div></td>`;
+    body += `<td class="rm-td-bt"><div class="rm-total" style="color:${pctColor(bt.annual_return)};">${fmtPct(bt.annual_return, true) || '--'}</div></td>`;
+    body += '</tr>';
+  }
+
+  // 说明
+  const note = `
+    <div class="rm-note">
+      <b>阅读说明</b><br>
+      • 每格上行＝<b>实际收益</b>，括号内为对应<b>实际年化</b>（几何年化换算），底部小字为窗口实际交易日数<br>
+      • 右侧金色两列＝<b>全样本回测</b>结果（策略在全部可用历史2016年至今的表现），作为策略设计能力参照<br>
+      • 短窗口（不足20个交易日）不显示年化——1日收益折算成年化会被极度放大（如+2.2%→25948%），无参考意义<br>
+      • <span style="color:var(--text-muted);">灰色"数据不足"</span>＝策略真实运行时长尚未覆盖该窗口<br>
+      • 数据更新于 ${RETURNS_MATRIX.update_time || '--'}
+    </div>`;
+
+  box.innerHTML = `<div class="rm-scroll"><table class="rm-table">${head}${body}</table></div>${note}`;
+}
+
+// ============================================================
 // 渲染：对比
 // ============================================================
 function renderCompare() {
@@ -886,7 +1036,7 @@ function setupNav() {
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       document.getElementById(`section-${section}`).classList.add('active');
 
-      if (section === 'compare') renderCompare();
+      if (section === 'compare') { renderReturnsMatrix(); renderCompare(); }
       if (section === 'holdings') renderHoldings();
       if (section === 'detail') renderAllDetails();
 

@@ -279,6 +279,14 @@ def main():
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
+    # 6. 生成多窗口收益统计矩阵
+    print("\n=== 生成多窗口收益统计矩阵 ===")
+    try:
+        import returns_matrix
+        returns_matrix.build_matrix()
+    except Exception as e:
+        print(f"    收益矩阵生成失败: {e}")
+
     print(f"\n=== 更新完成 ===")
     print(f"更新时间: {summary['update_time']}")
     print(f"数据区间: {summary['data_range']['start']} ~ {summary['data_range']['end']}")

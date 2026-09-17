@@ -62,25 +62,16 @@ BENCHMARK_DIR = os.path.join(OUTPUT_DIR, 'benchmarks')
 # ============================================================
 # 数据获取 - 腾讯行情API
 # ============================================================
-def fetch_kline_tencent(code, market, start_date='2018-01-01', end_date='2026-12-31', adjust='qfq', retry=3):
-    """从腾讯API获取日K线数据
-    A股: market=sh/sz, code=数字代码 → symbol=sh512040
-    美股: market=us, code=us.INX → symbol=us.INX
-    """
-    if market == 'us':
-        symbol = code  # 美股code本身就是完整symbol（如us.INX）
-    else:
-        symbol = f'{market}{code}'
-    # 腾讯API日频最多返回640条
-    # 双域名fallback：proxy域名在部分网络不可达（如GitHub海外runner），回退官方域名
-    domains = ['proxy.finance.qq.com/ifzqgtimg', 'web.ifzq.gtimg.cn/app']
-
+def _fetch_kline_segment(symbol, start_date, end_date, adjust, domains, retry=2):
+    """拉取单段K线（腾讯API单次上限约640条，超过会截断）"""
     for i in range(retry):
         for domain in domains:
             url = f'https://{domain}/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,{adjust}'
             try:
                 r = requests.get(url, headers=HEADERS, timeout=15)
                 data = r.json()
+                if data.get('code') != 0:
+                    continue
                 inner = data.get('data', {}).get(symbol, {})
 
                 # 数据在 qfqday(前复权) 或 day(不复权) 键下
@@ -93,19 +84,56 @@ def fetch_kline_tencent(code, market, start_date='2018-01-01', end_date='2026-12
                         if isinstance(v, list) and len(v) > 0 and isinstance(v[0], list):
                             klines = v
                             break
-
                 if klines:
-                    # 格式: [date, open, close, high, low, volume]
-                    df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
-                    df['date'] = pd.to_datetime(df['date'])
-                    for col in ['open', 'close', 'high', 'low', 'volume']:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                    df = df.sort_values('date').reset_index(drop=True)
-                    return df
+                    return klines
             except Exception:
                 continue
-        time.sleep(1)
-    return None
+        time.sleep(0.5)
+    return []
+
+
+def fetch_kline_tencent(code, market, start_date='2016-01-01', end_date='2026-12-31',
+                        adjust='qfq', retry=3):
+    """从腾讯API获取日K线数据（分段拉取，突破单次640条上限）
+
+    A股: market=sh/sz, code=数字代码 → symbol=sh512040
+    美股: market=us, code=us.INX → symbol=us.INX
+
+    腾讯API单次最多返回640条日线（约2.5年），因此按自然年分段请求后拼接去重，
+    可获取从2016年至今约10年的完整历史，以支持"近三年"等长周期窗口统计。
+    """
+    if market == 'us':
+        symbol = code  # 美股code本身就是完整symbol（如us.INX）
+    else:
+        symbol = f'{market}{code}'
+
+    # 双域名fallback：proxy域名在部分网络不可达（如GitHub海外runner），回退官方域名
+    domains = ['proxy.finance.qq.com/ifzqgtimg', 'web.ifzq.gtimg.cn/app']
+
+    start_year = int(str(start_date)[:4])
+    end_year = int(str(end_date)[:4])
+
+    all_klines = []
+    for year in range(start_year, end_year + 1):
+        seg_start = f'{year}-01-01' if year > start_year else start_date
+        seg_end = f'{year}-12-31' if year < end_year else end_date
+        kl = _fetch_kline_segment(symbol, seg_start, seg_end, adjust, domains, retry)
+        if kl:
+            all_klines.extend(kl)
+
+    if not all_klines:
+        return None
+
+    # 格式: [date, open, close, high, low, volume]
+    df = pd.DataFrame(all_klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
+    df['date'] = pd.to_datetime(df['date'])
+    for col in ['open', 'close', 'high', 'low', 'volume']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df = df.drop_duplicates(subset=['date']).sort_values('date').reset_index(drop=True)
+
+    # 按请求区间裁剪
+    df = df[(df['date'] >= pd.Timestamp(start_date)) & (df['date'] <= pd.Timestamp(end_date))]
+    return df.reset_index(drop=True) if len(df) else None
 
 
 def fetch_all_data():

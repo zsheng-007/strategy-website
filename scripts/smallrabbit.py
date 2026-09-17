@@ -91,10 +91,8 @@ STRATEGY_DIR = os.path.join(OUTPUT_DIR, 'strategies')
 # ============================================================
 # 数据获取
 # ============================================================
-def fetch_etf_data(code, market, start_date='2021-01-01', end_date='2026-12-31', retry=3):
-    symbol = f'{market}{code}'
-    # 双域名fallback：proxy域名在部分网络不可达（如GitHub海外runner），回退官方域名
-    domains = ['proxy.finance.qq.com/ifzqgtimg', 'web.ifzq.gtimg.cn/app']
+def _fetch_etf_segment(symbol, start_date, end_date, domains, retry=2):
+    """拉取单段K线（腾讯API单次上限约640条，超过会截断）"""
     for i in range(retry):
         for domain in domains:
             url = f'https://{domain}/appstock/app/fqkline/get?param={symbol},day,{start_date},{end_date},640,qfq'
@@ -111,16 +109,39 @@ def fetch_etf_data(code, market, start_date='2021-01-01', end_date='2026-12-31',
                             klines = v
                             break
                 if klines:
-                    df = pd.DataFrame(klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
-                    df['date'] = pd.to_datetime(df['date'])
-                    for col in ['open', 'close', 'high', 'low', 'volume']:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                    df = df.sort_values('date').reset_index(drop=True)
-                    return df
+                    return klines
             except Exception:
                 continue
-        time.sleep(1)
-    return None
+        time.sleep(0.5)
+    return []
+
+
+def fetch_etf_data(code, market, start_date='2016-01-01', end_date='2026-12-31', retry=3):
+    """拉取ETF日线（分段拉取突破单次640条上限，支持2016年至今约10年历史）"""
+    symbol = f'{market}{code}'
+    # 双域名fallback：proxy域名在部分网络不可达（如GitHub海外runner），回退官方域名
+    domains = ['proxy.finance.qq.com/ifzqgtimg', 'web.ifzq.gtimg.cn/app']
+
+    start_year = int(str(start_date)[:4])
+    end_year = int(str(end_date)[:4])
+    all_klines = []
+    for year in range(start_year, end_year + 1):
+        seg_start = f'{year}-01-01' if year > start_year else start_date
+        seg_end = f'{year}-12-31' if year < end_year else end_date
+        kl = _fetch_etf_segment(symbol, seg_start, seg_end, domains, retry)
+        if kl:
+            all_klines.extend(kl)
+
+    if not all_klines:
+        return None
+
+    df = pd.DataFrame(all_klines, columns=['date', 'open', 'close', 'high', 'low', 'volume'])
+    df['date'] = pd.to_datetime(df['date'])
+    for col in ['open', 'close', 'high', 'low', 'volume']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df = df.drop_duplicates(subset=['date']).sort_values('date').reset_index(drop=True)
+    df = df[(df['date'] >= pd.Timestamp(start_date)) & (df['date'] <= pd.Timestamp(end_date))]
+    return df.reset_index(drop=True) if len(df) else None
 
 
 def fetch_all_data():
