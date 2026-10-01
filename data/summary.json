@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-09-30 14:22:15",
+  "update_time": "2026-10-01 14:58:13",
   "etfs": {
     "512040": {
       "name": "价值ETF",
@@ -105,13 +105,13 @@
     },
     {
       "name": "多元配置(风险平价)",
-      "total_return": 0.48,
-      "annual_return": 0.56,
+      "total_return": 0.6,
+      "annual_return": 0.7,
       "max_drawdown": -11.13,
-      "sharpe": -0.025,
-      "calmar": 0.05,
+      "sharpe": -0.015,
+      "calmar": 0.063,
       "win_rate": 36.57,
-      "volatility": 14.74,
+      "volatility": 14.75,
       "start_date": "2025-11-13",
       "end_date": "2026-09-30",
       "trading_days": 216,

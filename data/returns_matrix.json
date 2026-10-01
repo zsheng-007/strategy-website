@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-09-30 14:22:15",
+  "update_time": "2026-10-01 14:58:13",
   "windows": [
     {
       "key": "d1",
@@ -338,17 +338,17 @@
       "strategy_type": "multi_asset",
       "name": "多元配置(风险平价)",
       "backtest": {
-        "total_return": 0.48,
-        "annual_return": 0.56,
+        "total_return": 0.6,
+        "annual_return": 0.7,
         "start_date": "2025-11-13",
         "end_date": "2026-09-30",
         "trading_days": 215,
         "max_drawdown": -11.13,
-        "sharpe": -0.025
+        "sharpe": -0.015
       },
       "windows": {
         "d1": {
-          "total_return": 0.73,
+          "total_return": 0.85,
           "annual_return": null,
           "trading_days": 1,
           "start_date": "2026-09-29",
@@ -356,7 +356,7 @@
           "sufficient": true
         },
         "w1": {
-          "total_return": -1.44,
+          "total_return": -1.32,
           "annual_return": null,
           "trading_days": 5,
           "start_date": "2026-09-22",
@@ -364,16 +364,16 @@
           "sufficient": true
         },
         "m1": {
-          "total_return": -2.09,
-          "annual_return": -22.34,
+          "total_return": -1.97,
+          "annual_return": -21.22,
           "trading_days": 21,
           "start_date": "2026-08-31",
           "end_date": "2026-09-30",
           "sufficient": true
         },
         "q1": {
-          "total_return": -0.77,
-          "annual_return": -3.05,
+          "total_return": -0.65,
+          "annual_return": -2.58,
           "trading_days": 63,
           "start_date": "2026-07-02",
           "end_date": "2026-09-30",
