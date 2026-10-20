@@ -1,5 +1,5 @@
 {
-  "update_time": "2026-10-19 15:10:24",
+  "update_time": "2026-10-20 13:34:44",
   "windows": [
     {
       "key": "d1",
@@ -31,53 +31,53 @@
       "strategy_type": "momentum",
       "name": "动量轮动",
       "backtest": {
-        "total_return": 1.66,
-        "annual_return": 1.54,
+        "total_return": 1.92,
+        "annual_return": 1.77,
         "start_date": "2025-08-28",
-        "end_date": "2026-10-19",
-        "trading_days": 272,
+        "end_date": "2026-10-20",
+        "trading_days": 273,
         "max_drawdown": -42.25,
-        "sharpe": 0.166
+        "sharpe": 0.172
       },
       "windows": {
         "d1": {
-          "total_return": 0.0,
+          "total_return": -0.75,
           "annual_return": null,
           "trading_days": 1,
-          "start_date": "2026-10-16",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-19",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "w1": {
-          "total_return": -2.0,
+          "total_return": -1.25,
           "annual_return": null,
           "trading_days": 5,
-          "start_date": "2026-10-12",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-13",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "m1": {
-          "total_return": -22.63,
-          "annual_return": -95.4,
+          "total_return": -21.2,
+          "annual_return": -94.27,
           "trading_days": 21,
-          "start_date": "2026-09-10",
-          "end_date": "2026-10-19",
+          "start_date": "2026-09-11",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "q1": {
-          "total_return": -33.76,
-          "annual_return": -80.75,
+          "total_return": -31.27,
+          "annual_return": -77.68,
           "trading_days": 63,
-          "start_date": "2026-07-14",
-          "end_date": "2026-10-19",
+          "start_date": "2026-07-15",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y1": {
-          "total_return": 0.91,
-          "annual_return": 0.91,
+          "total_return": 2.51,
+          "annual_return": 2.51,
           "trading_days": 252,
-          "start_date": "2025-09-25",
-          "end_date": "2026-10-19",
+          "start_date": "2025-09-26",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y3": {
@@ -92,53 +92,53 @@
       "strategy_type": "equal_weight",
       "name": "等权再平衡",
       "backtest": {
-        "total_return": 8.46,
-        "annual_return": 7.81,
+        "total_return": 8.86,
+        "annual_return": 8.15,
         "start_date": "2025-08-28",
-        "end_date": "2026-10-19",
-        "trading_days": 272,
-        "max_drawdown": -23.13,
-        "sharpe": 0.343
+        "end_date": "2026-10-20",
+        "trading_days": 273,
+        "max_drawdown": -22.85,
+        "sharpe": 0.355
       },
       "windows": {
         "d1": {
-          "total_return": -0.42,
+          "total_return": -0.14,
           "annual_return": null,
           "trading_days": 1,
-          "start_date": "2026-10-16",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-19",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "w1": {
-          "total_return": -4.06,
+          "total_return": -4.28,
           "annual_return": null,
           "trading_days": 5,
-          "start_date": "2026-10-12",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-13",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "m1": {
-          "total_return": -12.72,
-          "annual_return": -80.46,
+          "total_return": -11.08,
+          "annual_return": -75.58,
           "trading_days": 21,
-          "start_date": "2026-09-10",
-          "end_date": "2026-10-19",
+          "start_date": "2026-09-11",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "q1": {
-          "total_return": -17.4,
-          "annual_return": -53.44,
+          "total_return": -16.32,
+          "annual_return": -50.97,
           "trading_days": 63,
-          "start_date": "2026-07-14",
-          "end_date": "2026-10-19",
+          "start_date": "2026-07-15",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y1": {
-          "total_return": 7.66,
-          "annual_return": 7.66,
+          "total_return": 9.5,
+          "annual_return": 9.5,
           "trading_days": 252,
-          "start_date": "2025-09-25",
-          "end_date": "2026-10-19",
+          "start_date": "2025-09-26",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y3": {
@@ -153,53 +153,53 @@
       "strategy_type": "relative_strength",
       "name": "相对强弱动态配比",
       "backtest": {
-        "total_return": 7.91,
-        "annual_return": 7.31,
+        "total_return": 8.31,
+        "annual_return": 7.65,
         "start_date": "2025-08-28",
-        "end_date": "2026-10-19",
-        "trading_days": 272,
-        "max_drawdown": -34.47,
-        "sharpe": 0.317
+        "end_date": "2026-10-20",
+        "trading_days": 273,
+        "max_drawdown": -34.23,
+        "sharpe": 0.328
       },
       "windows": {
         "d1": {
-          "total_return": -0.42,
+          "total_return": -0.14,
           "annual_return": null,
           "trading_days": 1,
-          "start_date": "2026-10-16",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-19",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "w1": {
-          "total_return": -4.06,
+          "total_return": -4.28,
           "annual_return": null,
           "trading_days": 5,
-          "start_date": "2026-10-12",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-13",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "m1": {
-          "total_return": -18.23,
-          "annual_return": -91.06,
+          "total_return": -16.65,
+          "annual_return": -88.75,
           "trading_days": 21,
-          "start_date": "2026-09-10",
-          "end_date": "2026-10-19",
+          "start_date": "2026-09-11",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "q1": {
-          "total_return": -26.95,
-          "annual_return": -71.52,
+          "total_return": -24.87,
+          "annual_return": -68.15,
           "trading_days": 63,
-          "start_date": "2026-07-14",
-          "end_date": "2026-10-19",
+          "start_date": "2026-07-15",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y1": {
-          "total_return": 7.12,
-          "annual_return": 7.12,
+          "total_return": 8.94,
+          "annual_return": 8.94,
           "trading_days": 252,
-          "start_date": "2025-09-25",
-          "end_date": "2026-10-19",
+          "start_date": "2025-09-26",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y3": {
@@ -214,61 +214,61 @@
       "strategy_type": "industry_rotation_v2",
       "name": "行业轮动(高频三因子)",
       "backtest": {
-        "total_return": 45.43,
-        "annual_return": 6.96,
-        "start_date": "2020-12-29",
-        "end_date": "2026-10-19",
-        "trading_days": 1403,
-        "max_drawdown": -35.18,
-        "sharpe": 0.311
+        "total_return": 92.14,
+        "annual_return": 10.79,
+        "start_date": "2020-03-04",
+        "end_date": "2026-10-20",
+        "trading_days": 1606,
+        "max_drawdown": -43.42,
+        "sharpe": 0.439
       },
       "windows": {
         "d1": {
-          "total_return": -1.01,
+          "total_return": 0.0,
           "annual_return": null,
           "trading_days": 1,
-          "start_date": "2026-10-16",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-19",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "w1": {
-          "total_return": -7.0,
+          "total_return": -7.26,
           "annual_return": null,
           "trading_days": 5,
-          "start_date": "2026-10-12",
-          "end_date": "2026-10-19",
+          "start_date": "2026-10-13",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "m1": {
-          "total_return": -6.17,
-          "annual_return": -53.46,
+          "total_return": -2.86,
+          "annual_return": -29.37,
           "trading_days": 21,
-          "start_date": "2026-09-10",
-          "end_date": "2026-10-19",
+          "start_date": "2026-09-11",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "q1": {
-          "total_return": -5.2,
-          "annual_return": -19.24,
+          "total_return": -6.81,
+          "annual_return": -24.58,
           "trading_days": 63,
-          "start_date": "2026-07-14",
-          "end_date": "2026-10-19",
+          "start_date": "2026-07-15",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y1": {
-          "total_return": 15.87,
-          "annual_return": 15.87,
+          "total_return": -4.81,
+          "annual_return": -4.81,
           "trading_days": 252,
-          "start_date": "2025-09-25",
-          "end_date": "2026-10-19",
+          "start_date": "2025-09-26",
+          "end_date": "2026-10-20",
           "sufficient": true
         },
         "y3": {
-          "total_return": 47.6,
-          "annual_return": 13.86,
+          "total_return": 26.46,
+          "annual_return": 8.14,
           "trading_days": 756,
-          "start_date": "2023-08-29",
-          "end_date": "2026-10-19",
+          "start_date": "2023-08-30",
+          "end_date": "2026-10-20",
           "sufficient": true
         }
       }
